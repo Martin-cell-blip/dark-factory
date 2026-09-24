@@ -1,0 +1,15 @@
+# Render blueprint for the public demo: runs the latest released stage folder as a
+# Docker web service on the free tier. Update `dockerContext`/`dockerfilePath` to the
+# highest released stage before deploying. The service reads $PORT (Render sets it).
+services:
+  - type: web
+    name: dark-factory-pocketful
+    runtime: docker
+    plan: free
+    dockerContext: ./stage-4
+    dockerfilePath: ./stage-4/Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"

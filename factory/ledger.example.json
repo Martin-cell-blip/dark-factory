@@ -1,0 +1,27 @@
+{
+  "task": "example: shape of an acceptance ledger the foreman publishes",
+  "folder": "stage-1",
+  "rules": [
+    "one item = one gradable fact = one targeted command that decides that item alone",
+    "'the whole suite passes' is exactly one item; never repeat the full suite per item",
+    "a check should finish in seconds; give a per-item timeout only for builds",
+    "a boundary item asserts that one capability of the next tier is absent; its test passes when the capability is missing (never use a test that is expected to fail: a crash would pass too)",
+    "items a command cannot decide carry check: null and are judged by the auditor"
+  ],
+  "items": [
+    {"id": 1, "desc": "health route answers 200 with the documented body",
+     "check": "python3 -m unittest tests.test_contract.Health -q"},
+    {"id": 2, "desc": "create returns the documented status and fields",
+     "check": "python3 -m unittest tests.test_contract.Create -q"},
+    {"id": 3, "desc": "invalid input returns the documented error, never an unhandled one",
+     "check": "python3 -m unittest tests.test_contract.InvalidInput -q"},
+    {"id": 4, "desc": "the whole suite passes",
+     "check": "python3 -m unittest discover -s tests -q"},
+    {"id": 5, "desc": "container builds with no network",
+     "check": "docker build --network none -t ledger-check-image .", "timeout": 900},
+    {"id": 6, "desc": "boundary: the next tier's new capability is absent from this folder",
+     "check": "python3 -m unittest tests.test_boundary -q"},
+    {"id": 7, "desc": "every fixed name in the task appears verbatim in the source (judgement: names are graded literally)",
+     "check": null}
+  ]
+}

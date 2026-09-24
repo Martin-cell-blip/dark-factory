@@ -1,0 +1,53 @@
+{
+  "workspace": ".",
+  "seats": [
+    {
+      "name": "foreman",
+      "description": "Plans, splits, judges and escalates; never writes product code",
+      "transport": "codex-app-server",
+      "auth": "subscription",
+      "mandate": "mandates/foreman.md",
+      "model": "gpt-5.5",
+      "effort": "high",
+      "approval": "never",
+      "sandbox": "danger-full-access",
+      "spawn_args": ["-c", "memories=false", "-c", "memories.use_memories=false", "-c", "memories.generate_memories=false"],
+      "room_owner": true
+    },
+    {
+      "name": "builder",
+      "description": "The only seat that writes product code; hands off evidence packets",
+      "transport": "claude-code-cli",
+      "auth": "subscription",
+      "mandate": "mandates/builder.md",
+      "claude_disallowed_tools": ["WebSearch", "WebFetch"],
+      "claude_strict_mcp_config": true
+    },
+    {
+      "name": "auditor",
+      "description": "Reproduces every evidence packet and attacks the changed surface; never edits product code",
+      "transport": "codex-app-server",
+      "auth": "subscription",
+      "mandate": "mandates/auditor.md",
+      "model": "gpt-5.5",
+      "effort": "high",
+      "approval": "never",
+      "sandbox": "danger-full-access",
+      "spawn_args": ["-c", "memories=false", "-c", "memories.use_memories=false", "-c", "memories.generate_memories=false"]
+    },
+    {
+      "name": "gatekeeper",
+      "description": "Releases only what builds and starts offline from a fresh clone; never edits code",
+      "transport": "claude-code-cli",
+      "auth": "subscription",
+      "mandate": "mandates/gatekeeper.md",
+      "claude_disallowed_tools": ["WebSearch", "WebFetch"],
+      "claude_strict_mcp_config": true
+    }
+  ],
+  "notes": {
+    "sandbox": "Codex seats need danger-full-access on Windows because the workspace-write sandbox user cannot reach the Jam daemon; the Claude headless seats already run host-native.",
+    "spawn_args": "Codex memory consolidation injects tasks into app-server sessions; keep it off for seats.",
+    "claude_context": "Claude subscription auth requires local_config context mode; CLAUDE.md at the repo root pins seats to the mandate."
+  }
+}

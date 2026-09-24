@@ -1,0 +1,15 @@
+# never in the public repository: holdout tests, specs, room id, scratch notes
+private/
+notes/
+.env
+*.key
+# the foreman's live room-plan sources; the room holds the published snapshots
+/plan.md
+/architecture.json
+# local state
+__pycache__/
+*.pyc
+.venv/
+data/
+*.db
+*.sqlite
