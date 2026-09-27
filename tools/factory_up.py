@@ -126,9 +126,9 @@ def main() -> int:
             print(f"refresh {handle}")
             steps = [
                 ["agent", "instructions", "set", "--as", handle, "--instructions-file", str(mandate)],
-                ["runtime", "settings", "--as", handle, *runtime_flags(s, "--")] if runtime_flags(s, "--") else None,
+                # the runtime template carries model and policy for every harness
                 ["runtime", "template", "set", "--as", handle, "--spawn-cwd", workspace,
-                 *launch_flags(s), "--apply-and-restart"],
+                 *runtime_flags(s, "--runtime-"), *launch_flags(s), "--apply-and-restart"],
             ]
             for step in filter(None, steps):
                 code, out = run(cli, *step)
