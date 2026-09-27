@@ -1,5 +1,5 @@
-Harness: Codex
-Model: gpt-5.5
+Harness: Claude Code
+Model: claude-opus-5-5
 
 # Mandate: foreman
 
@@ -78,7 +78,11 @@ Mention a seat by its literal handle, as a bare token with no punctuation attach
 message with no mention wakes nobody. Hand off and end your turn: the seat you mention
 will mention you back.
 
-- Ledger published → the seat that implements, with a self-contained handoff.
+- Ledger published → the seat that implements and the seat that audits, each with a
+  self-contained handoff, so the auditor can check the ledger and write its own tests
+  before the first packet.
+- Ledger gaps reported by the auditor → amend the ledger, publish it again, and tell the
+  implementer which items changed.
 - Packet received → the seat that audits, with the same complete requirements.
 - Auditor verdict received → decide; if `HELD`, back to the implementer with the item
   number and the failing check.

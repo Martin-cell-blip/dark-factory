@@ -4,21 +4,16 @@
     {
       "name": "foreman",
       "description": "Plans, splits, judges and reports; never writes product code",
-      "transport": "codex-app-server",
+      "transport": "claude-code-cli",
       "auth": "subscription",
       "mandate": "mandates/foreman.md",
-      "model": "gpt-5.5",
-      "effort": "high",
-      "approval": "never",
-      "sandbox": "danger-full-access",
-      "spawn_args": [
-        "-c",
-        "memories=false",
-        "-c",
-        "memories.use_memories=false",
-        "-c",
-        "memories.generate_memories=false"
+      "model": "claude-opus-5-5",
+      "claude_permission_mode": "auto",
+      "claude_disallowed_tools": [
+        "WebSearch",
+        "WebFetch"
       ],
+      "claude_strict_mcp_config": true,
       "room_owner": true
     },
     {
@@ -27,31 +22,27 @@
       "transport": "claude-code-cli",
       "auth": "subscription",
       "mandate": "mandates/builder.md",
+      "model": "claude-opus-5-5",
+      "claude_permission_mode": "auto",
       "claude_disallowed_tools": [
         "WebSearch",
         "WebFetch"
       ],
-      "claude_strict_mcp_config": true,
-      "model": "claude-opus-5-5"
+      "claude_strict_mcp_config": true
     },
     {
       "name": "auditor",
       "description": "Reproduces every evidence packet and attacks the changed surface; never edits product code",
-      "transport": "codex-app-server",
+      "transport": "claude-code-cli",
       "auth": "subscription",
       "mandate": "mandates/auditor.md",
-      "model": "gpt-5.5",
-      "effort": "high",
-      "approval": "never",
-      "sandbox": "danger-full-access",
-      "spawn_args": [
-        "-c",
-        "memories=false",
-        "-c",
-        "memories.use_memories=false",
-        "-c",
-        "memories.generate_memories=false"
-      ]
+      "model": "claude-opus-5-5",
+      "claude_permission_mode": "auto",
+      "claude_disallowed_tools": [
+        "WebSearch",
+        "WebFetch"
+      ],
+      "claude_strict_mcp_config": true
     },
     {
       "name": "gatekeeper",
@@ -59,17 +50,18 @@
       "transport": "claude-code-cli",
       "auth": "subscription",
       "mandate": "mandates/gatekeeper.md",
+      "model": "claude-opus-5-5",
+      "claude_permission_mode": "auto",
       "claude_disallowed_tools": [
         "WebSearch",
         "WebFetch"
       ],
-      "claude_strict_mcp_config": true,
-      "model": "claude-opus-5-5"
+      "claude_strict_mcp_config": true
     }
   ],
   "notes": {
-    "sandbox": "Codex seats need danger-full-access on Windows because the workspace-write sandbox user cannot reach the Jam daemon; the Claude headless seats already run host-native.",
-    "spawn_args": "Codex memory consolidation injects tasks into app-server sessions; keep it off for seats.",
+    "harness": "One harness for every seat. A Claude Code seat loads only the MCP servers the factory passes it (strict MCP config) and runs without web tools. A Codex seat inherits the operator's own Codex configuration (MCP servers, plugins, injected environment variables), which launch flags can add to but not remove.",
+    "permission_mode": "No seat can approve another seat's permission request, so every seat runs in a mode that needs none.",
     "claude_context": "Claude subscription auth requires local_config context mode; CLAUDE.md at the repo root pins seats to the mandate.",
     "claude_model": "Pinned so the Model line in each mandate is exact."
   }

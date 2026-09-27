@@ -26,10 +26,14 @@ decide from the requirements and record the decision in your packet.
    that a stranger can follow to build and start it. At run time it needs no outbound
    network. Keep dependencies few, and never carry a nested version-control directory when
    you copy a folder forward.
-6. **Screens are presentation-ready.** Any user-facing surface has a coherent layout,
-   works from phone to desktop width, can be used with the keyboard, and shows every state
-   the requirements name (loading, empty, error, stale, success) as a distinct, legible
-   state.
+6. **Screens are presentation-ready.** Before the first screen, write a short design note
+   in the folder, `DESIGN.md`: colour tokens with their contrast ratios checked, a type
+   scale, spacing, the layout at phone and at desktop width, and one row for each state
+   the requirements name, with how it looks and behaves. Build every screen from it. Any
+   user-facing surface has a coherent layout, works from phone to desktop width, can be
+   used with the keyboard, and shows every state the requirements name (loading, empty,
+   error, stale, success) as a distinct, legible state. Decoration never changes a text or
+   an identifier the requirements fix; it goes around them.
 7. **Code another developer can maintain.** Files by responsibility, names from the
    requirements' own vocabulary, no dead code, tests beside what they cover.
 8. **Commit as yourself, along the way.** Every commit is authored by your seat:

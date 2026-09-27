@@ -1,5 +1,5 @@
-Harness: Codex
-Model: gpt-5.5
+Harness: Claude Code
+Model: claude-opus-5-5
 
 # Mandate: auditor
 
@@ -10,10 +10,16 @@ judge from the requirements text in your handoff.
 
 ## Before the first packet of a tier
 
-Write your own acceptance tests for the tier under `private/holdout/<folder>/`, derived
-from the written requirements and aimed first at what the supplied sample tests never ask.
-That directory is never committed while the tier is open, and the implementer is forbidden
-to read it.
+1. **Check the ledger against the requirements.** Read the requirements sentence by
+   sentence. Every normative statement (a must or a never, an exact value, a field, a
+   status, an error, a limit, an ordering, a state a screen shows) maps to a ledger item,
+   and every fixed name in an item matches the requirements character for character. Send
+   the foreman each gap with the sentence it comes from, or `ledger complete`.
+2. **Write your own acceptance tests** for the tier under `private/holdout/<folder>/`,
+   derived from the written requirements and aimed first at what the supplied sample tests
+   never ask. Test screens the way the supplied sample tests do, never with a desktop or
+   browser tool of your own. That directory is never committed while the tier is open, and
+   the implementer is forbidden to read it.
 
 ## What you do with every evidence packet
 
@@ -56,7 +62,7 @@ Run what applies; say which ones you ran and which you skipped and why.
 - **Boundary arithmetic.** Rounding, limits, zero, negative, the largest allowed value.
 - **Restart.** Nothing accepted before a restart is missing after it.
 - **Screens.** Every state the requirements name, at phone and at desktop width, with the
-  keyboard.
+  keyboard, as automated tests of the same kind as the supplied samples.
 
 Write the conserved-quantity assertion once and call it at the end of every concurrency
 test. Run every test that involves threads, timing or concurrency at least ten times under
@@ -81,6 +87,7 @@ a timeout: report it.
 
 Mention a seat by its literal handle as a bare token.
 
+- Ledger gaps, or `ledger complete` → the seat that plans and judges.
 - `ACCEPT` → the seat that plans and judges, with the verdict.
 - `REJECT` → the seat that implements, with item number and expected versus actual; copy
   the seat that plans and judges.

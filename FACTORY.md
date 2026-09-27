@@ -9,18 +9,18 @@ work.
 
 | Seat | Harness | Model | Owns | Writes |
 |---|---|---|---|---|
-| [foreman](mandates/foreman.md) | Codex | gpt-5.5, high effort | acceptance ledger, handoffs, board, verdicts, final report | nothing in the product |
-| [builder](mandates/builder.md) | Claude Code | claude-opus-5-5 | implementation, evidence packets | product code |
-| [auditor](mandates/auditor.md) | Codex | gpt-5.5, high effort | reproduction, holdout tests, adversarial sweep, verdicts | tests |
+| [foreman](mandates/foreman.md) | Claude Code | claude-opus-5-5 | acceptance ledger, handoffs, board, verdicts, final report | ledgers |
+| [builder](mandates/builder.md) | Claude Code | claude-opus-5-5 | implementation, design note, evidence packets | product code |
+| [auditor](mandates/auditor.md) | Claude Code | claude-opus-5-5 | ledger coverage check, reproduction, holdout tests, adversarial sweep, verdicts | tests |
 | [gatekeeper](mandates/gatekeeper.md) | Claude Code | claude-opus-5-5 | fresh-clone release check, release notes | release notes |
 
-Each seat commits under its own git identity (`builder@band.local`, `auditor@band.local`,
-`gatekeeper@band.local`), so the history shows who did what.
+Each seat commits under its own git identity (`foreman@band.local`, `builder@band.local`,
+`auditor@band.local`, `gatekeeper@band.local`), so the history shows who did what.
 
 ## Stand it up
 
-You need Band Desktop signed in with its readiness checks green, Claude Code and Codex
-signed in, Docker running, and Python 3.12 or later.
+You need Band Desktop signed in with its readiness checks green, Claude Code signed in,
+Docker running, and Python 3.12 or later.
 
 ```
 python tools/factory_up.py --dry-run     # probe the four runtimes, create nothing
@@ -30,17 +30,11 @@ python tools/factory_up.py --new-room    # create or refresh the seats, open a r
 `factory/seats.json` is the whole configuration: seat names, harnesses, models, effort,
 approval and sandbox policy, launch flags, and which seat owns the room. The script is
 idempotent. Each mandate is attached as a live-linked file, so the text in `mandates/` is
-the instruction the seat runs under. Launch flags turn Codex memories off and restrict the
-Claude Code seats to Band's own MCP server with web tools disabled.
+the instruction the seat runs under. Every seat loads Band's own MCP server and nothing
+else, with web tools disabled.
 
-Run it: paste the task and the specification into the room, mention the foreman, and do
-nothing else until the foreman's final report.
-
-On Windows, Codex's `workspace-write` sandbox runs commands as a separate user that
-cannot reach the local Band daemon, so the Codex seats run with `danger-full-access`; on
-macOS and Linux `workspace-write` can be restored in `factory/seats.json`. If Claude Code
-is unavailable, `factory/seats.codex-only.json` runs every seat on Codex; edit the
-`Harness:` and `Model:` lines of the builder and gatekeeper mandates to match.
+Run it: the script ends by printing the command that posts the task and mentions the
+foreman. Post it, then do nothing else until the foreman's final report.
 
 ## Design choices, and why
 
@@ -50,9 +44,18 @@ ledger items claimed with their wording (`factory/evidence-packet.md`). The rece
 re-runs it before believing it; a claim without a packet is returned unread. Reason: a
 model's summary of its own work is the least reliable signal in the room.
 
-**The seat that judges does not share the builder's model.** The builder runs Claude, the
-auditor runs GPT. Reason: an independent reviewer should not share the blind spots of the
-seat that built.
+**The seat that judges does not share the builder's information.** Before anyone builds,
+the auditor checks the foreman's ledger against the requirements, sentence by sentence,
+and writes its own holdout tests. It reproduces each packet in its own worktree and sees
+the builder's commits and packets, never its reasoning. Reason: a reviewer that reads the
+builder's explanation inherits its mistakes.
+
+**One harness, sized to measured limits.** A seat that stops at a usage limit stops for
+good, because nobody may restart it once the task is dispatched. In the first rehearsal
+the two Codex seats used 83% of a ChatGPT Plus five-hour limit in two and a half hours,
+while the Claude seats did the larger half of the work without reaching a limit. Every
+seat now runs Claude Code on one Max subscription, where the factory also decides which
+tools and MCP servers a seat loads.
 
 **Deterministic checks before any opinion.** The foreman writes the acceptance ledger as
 JSON with one targeted command per checkable item (`factory/ledger.example.json`);
@@ -84,6 +87,7 @@ mention it.
 | Layer | Catches | What happens next |
 |---|---|---|
 | Ledger with fixed names copied verbatim | a name graded literally, drifted | foreman holds before audit |
+| Ledger coverage check by the auditor | a requirement with no item, a misworded name | foreman amends the ledger before the first packet |
 | Packet reproduction | a claim that does not match what the commit does | `REJECT: packet does not reproduce` |
 | Deterministic gate and the task's check tool | a failing item, a folder that overshoots its tier | reject with item number, expected, actual |
 | Holdout tests | requirements the sample tests never ask | reject with expected versus actual |
@@ -96,10 +100,11 @@ mention it.
 
 Measured with `tools/spend.py`, which reads each seat's provider session from Band and
 sums the tokens in the runtimes' own logs, and with `tools/room_metrics.py` on the room
-log. The seats run on subscriptions (Claude Max, ChatGPT), so there is no metered price;
+log. The seats run on subscriptions, so there is no metered price;
 tokens are the cost.
 
-Rehearsal on an unrelated domain, four tiers, 2 h 48 min wall clock:
+Rehearsal on an unrelated domain, four tiers, 2 h 48 min wall clock, with the first seat
+layout (foreman and auditor on Codex):
 
 | Seat | Model | Input | Cached input | Output |
 |---|---|---:|---:|---:|
@@ -116,7 +121,7 @@ audit, 1 release held at the gate, first-pass rate 0.95.
 ## What we tried that failed
 
 Two rehearsals on an unrelated domain, a small HTTP service for a community tool library,
-each left a rule in the mandates.
+each left a rule in the factory.
 
 1. The auditor checked out a commit in the shared working tree, and the gatekeeper then
    committed onto that detached HEAD. Now the auditor reproduces in a temporary worktree,
@@ -124,8 +129,8 @@ each left a rule in the mandates.
 2. A seat answered a product question put to the human. Now nobody asks the human anything
    after the task is dispatched.
 3. The Codex runtime's memory consolidation handed the foreman an unrelated task, which it
-   relayed. Now work enters only as the human's task, and Codex seats start with memories
-   off.
+   relayed. Now work enters only as the human's task in the room; anything else a runtime
+   injects is ignored, not relayed.
 4. A queue test passed for the builder and the auditor, then failed one run in five at the
    gate under 1 CPU. Now timing and concurrency tests run ten times under the caps.
 5. A ledger ran the full suite for 13 of its 14 items, and the gate took an hour. Now each
@@ -138,13 +143,24 @@ each left a rule in the mandates.
    Now committed files carry repository-relative paths only.
 8. The first bring-up script ran only on Windows. It is now `tools/factory_up.py`, which
    runs wherever Band Desktop does.
+9. The foreman and the auditor ran Codex on a ChatGPT Plus plan. They used 83% of its
+   five-hour limit in two and a half hours, and they inherited the operator's own Codex
+   setup: personal MCP servers, plugins with browser and desktop control, and environment
+   variables that the operator's configuration injects into every shell. Launch flags can
+   add Codex settings but not remove them. Every seat now runs Claude Code, whose MCP
+   servers and tools the factory sets.
 
 The rehearsal transcripts are not published: a runtime brought unrelated personal data into
 that room (item 3).
 
 ## Limitations
 
-- A seat cannot approve another seat's permission request, so the seats run with policies
-  that need no approval; on Windows that means host-native access for the Codex seats.
+- A seat cannot approve another seat's permission request, so every seat runs in a
+  permission mode that needs no approval.
+- All four seats share one model family. The auditor's independence rests on what it
+  sees and when it writes its tests, not on a different model.
+- A seat whose runtime fails a turn, at a usage limit or an outage, posts an error that
+  mentions nobody, so the band waits. The factory stays inside measured limits rather than
+  recovering from that.
 - An evidence packet proves what ran and what it printed, not that it was the right thing
   to run; that judgement is the auditor's, and the auditor is a model.

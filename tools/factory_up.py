@@ -14,8 +14,8 @@ private/room.txt (gitignored).
                                             point every seat at another result repository
                                             (a practice run), with its own room
 
-Needs Band Desktop signed in (its CLI is `band`, formerly `jam`), and the coding CLIs the
-seats use (Claude Code, Codex) signed in.
+Needs Band Desktop signed in (its CLI is `band`, formerly `jam`), and the coding CLI the
+seats use (Claude Code) signed in.
 """
 from __future__ import annotations
 
@@ -50,8 +50,10 @@ def run(cli: str, *args: str) -> tuple[int, str]:
 
 
 def launch_flags(seat: dict) -> list[str]:
-    """Runtime-template flags: launch arguments and tool restrictions."""
+    """Runtime-template flags: launch arguments, permission mode and tool restrictions."""
     flags = [f"--spawn-arg={a}" for a in seat.get("spawn_args", [])]
+    if seat.get("claude_permission_mode"):
+        flags += ["--claude-permission-mode", seat["claude_permission_mode"]]
     for tool in seat.get("claude_disallowed_tools", []):
         flags += ["--claude-disallowed-tool", tool]
     if seat.get("claude_strict_mcp_config"):
@@ -126,8 +128,9 @@ def main() -> int:
             print(f"refresh {handle}")
             steps = [
                 ["agent", "instructions", "set", "--as", handle, "--instructions-file", str(mandate)],
-                # the runtime template carries model and policy for every harness
+                # the runtime template carries harness, model and policy for every seat
                 ["runtime", "template", "set", "--as", handle, "--spawn-cwd", workspace,
+                 "--transport", s["transport"], "--runtime-auth", s["auth"],
                  *runtime_flags(s, "--runtime-"), *launch_flags(s), "--apply-and-restart"],
             ]
             for step in filter(None, steps):
@@ -160,7 +163,11 @@ def main() -> int:
         if code != 0 and "409" not in out:  # 409: already a member
             print(f"  warning: add {participant}: {out.strip()[:200]}")
     print(run(cli, "chat", "participants", "--as", owner_handle, room)[1].rstrip())
-    print(f"\nPost the task in the room and mention @{owner_handle}.")
+    other = next(h for h in handles.values() if h != owner_handle)
+    m = re.search(re.escape(owner_handle) + r" .*\(([0-9a-f-]{36})\)", run(cli, "peers", "--as", other)[1])
+    owner_id = m.group(1) if m else f"<participant id of {owner_handle}>"
+    print(f"\nDispatch the task, the only human input of the run:\n"
+          f"  {cli} room send {room} \"<task text>\" --mention {owner_id}")
     return 0
 
 
