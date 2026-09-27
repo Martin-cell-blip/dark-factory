@@ -126,17 +126,19 @@ def main() -> int:
                 sys.exit(f"create failed for {handle}:\n{out}")
         else:
             print(f"refresh {handle}")
-            steps = [
-                ["agent", "instructions", "set", "--as", handle, "--instructions-file", str(mandate)],
-                # the runtime template carries harness, model and policy for every seat
-                ["runtime", "template", "set", "--as", handle, "--spawn-cwd", workspace,
-                 "--transport", s["transport"], "--runtime-auth", s["auth"],
-                 *runtime_flags(s, "--runtime-"), *launch_flags(s), "--apply-and-restart"],
-            ]
-            for step in filter(None, steps):
-                code, out = run(cli, *step)
-                if code != 0:
-                    print(f"  warning: {' '.join(step[:3])}: {out.strip()[:200]}")
+        # applied after a create too: creation stores the working directory in the
+        # Windows extended-length form (\\?\D:\...), which some shells and tools reject
+        steps = [
+            ["agent", "instructions", "set", "--as", handle, "--instructions-file", str(mandate)],
+            # the runtime template carries harness, model and policy for every seat
+            ["runtime", "template", "set", "--as", handle, "--spawn-cwd", workspace,
+             "--transport", s["transport"], "--runtime-auth", s["auth"],
+             *runtime_flags(s, "--runtime-"), *launch_flags(s), "--apply-and-restart"],
+        ]
+        for step in steps:
+            code, out = run(cli, *step)
+            if code != 0:
+                print(f"  warning: {' '.join(step[:3])}: {out.strip()[:200]}")
 
     if a.dry_run:
         return 0
