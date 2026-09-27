@@ -103,25 +103,28 @@ sums the tokens in the runtimes' own logs, and with `tools/room_metrics.py` on t
 log. The seats run on subscriptions, so there is no metered price;
 tokens are the cost.
 
-Rehearsal on an unrelated domain, four tiers, 2 h 48 min wall clock, with the first seat
-layout (foreman and auditor on Codex):
+Practice run on the event's unscored practice track, four stages, every seat on Claude
+Code: 5 h 20 min wall clock, of which the host slept 2 h 29 min, so 2 h 51 min of work and
+568 model calls.
 
 | Seat | Model | Input | Cached input | Output |
 |---|---|---:|---:|---:|
-| foreman | gpt-5.5 | 270,051 | 11,307,392 | 49,801 |
-| builder | claude-opus-5-5 | 251,209 | 28,970,358 | 154,423 |
-| auditor | gpt-5.5 | 394,154 | 10,193,280 | 61,572 |
-| gatekeeper | claude-opus-5-5 | 117,448 | 7,083,665 | 55,360 |
-| total | | 1,032,862 | 57,554,695 | 321,156 |
+| foreman | claude-opus-5-5 | 338,685 | 15,325,606 | 74,968 |
+| builder | claude-opus-5-5 | 418,971 | 21,812,813 | 116,484 |
+| auditor | claude-opus-5-5 | 518,969 | 27,994,993 | 127,984 |
+| gatekeeper | claude-opus-5-5 | 297,127 | 15,253,433 | 58,898 |
+| total | | 1,573,752 | 80,386,845 | 378,334 |
 
-The builder produced under half of all output tokens: the work is spread across the band.
-Room metrics for that run: 6 evidence packets, 5 auditor verdicts, 1 foreman hold before
-audit, 1 release held at the gate, first-pass rate 0.95.
+The builder produced under a third of the output tokens; the seats that verify did most of
+the reading. 7 evidence packets, 3 rejections, 1 release held, 5 ledger amendments, 2 of
+them from the auditor's coverage check. Every stage claimed 100% of its own suite in the
+strictest mode, and every next-stage suite the harness runs failed against the earlier
+folder, as it must; an independent re-run after the report agreed.
 
 ## What we tried that failed
 
 Two rehearsals on an unrelated domain, a small HTTP service for a community tool library,
-each left a rule in the factory.
+and a practice run on the event's practice track each left a rule in the factory.
 
 1. The auditor checked out a commit in the shared working tree, and the gatekeeper then
    committed onto that detached HEAD. Now the auditor reproduces in a temporary worktree,
@@ -149,6 +152,14 @@ each left a rule in the factory.
    variables that the operator's configuration injects into every shell. Launch flags can
    add Codex settings but not remove them. Every seat now runs Claude Code, whose MCP
    servers and tools the factory sets.
+10. In the practice run the host went to sleep for 2 h 29 min in the middle of a release
+    check. The band carried on when it woke, but a sleeping host is indistinguishable from
+    a stalled band, so the machine is kept awake for the length of a run.
+11. A boundary item for a tier whose successor adds no observable capability could not be
+    checked; the builder refused to plant a defect to make it checkable, and the foreman
+    withdrew the item. Now the ledger records that no boundary item applies.
+12. A Windows path in a handoff lost its backslashes to escape processing on the way into
+    the room. Paths in messages are written with forward slashes.
 
 The rehearsal transcripts are not published: a runtime brought unrelated personal data into
 that room (item 3).

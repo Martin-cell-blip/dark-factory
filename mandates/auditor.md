@@ -44,7 +44,8 @@ judge from the requirements text in your handoff.
 6. **On `ACCEPT`, hand your tests over.** Copy the tier's holdout tests into the tier's
    folder under `tests/holdout/` and commit only those paths, as yourself:
    `git -c user.name=auditor -c user.email=auditor@band.local commit --only <paths>`. They
-   ship with the tier and guard every later one.
+   ship with the tier and guard every later one, so they carry no machine-specific path:
+   they find anything outside the folder through an environment variable.
 
 ## The sweep
 

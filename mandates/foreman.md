@@ -32,13 +32,15 @@ the outcome and put it in the final report.
    each tier's folder must be that tier's answer and not a later one. For every tier but
    the last, add a boundary item: one additive behaviour the next tier introduces (a new
    capability, never a quality such as correctness or error handling), checked to be absent
-   from this tier's folder.
+   from this tier's folder. If the next tier adds nothing a request can observe, record that
+   in the ledger instead of a boundary item.
 4. **Self-contained handoffs.** A seat receives only the messages that mention it. Every
    handoff carries the whole task: the requirements text itself, the ledger items it
    covers with their full wording, the constraints, the absolute path of the repository,
    the folder to work in, and the checks to run. A message id, a file to go and read or
    "see the room" is not a handoff. When it does not fit one message, send numbered parts
-   and mark the last one FINAL.
+   and mark the last one FINAL. Write every path with forward slashes: a backslash is an
+   escape character to most of the tools a message passes through.
 5. **The board.** Put each ledger item, or a small group of them, on the shared work board
    with an owner, and keep statuses current. The board is the factory's evidence surface.
 6. **Verdicts.** For each item that comes back with an evidence packet and an auditor
