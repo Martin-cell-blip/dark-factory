@@ -3,7 +3,7 @@
   "seats": [
     {
       "name": "foreman",
-      "description": "Plans, splits, judges and escalates; never writes product code",
+      "description": "Plans, splits, judges and reports; never writes product code",
       "transport": "codex-app-server",
       "auth": "subscription",
       "mandate": "mandates/foreman.md",
@@ -80,9 +80,6 @@
     }
   ],
   "notes": {
-    "sandbox": "Codex seats need danger-full-access on Windows because the workspace-write sandbox user cannot reach the Jam daemon; the Claude headless seats already run host-native.",
-    "spawn_args": "Codex memory consolidation injects tasks into app-server sessions; keep it off for seats.",
-    "claude_context": "Claude subscription auth requires local_config context mode; CLAUDE.md at the repo root pins seats to the mandate.",
-    "fallback": "All four seats on Codex. Use when Claude subscription access for the CLI is unavailable (seen once, transient, 2026-09-23 22:03 UTC). Single provider weakens the audit; say so in the case study."
+    "fallback": "Every seat on Codex, for when Claude Code is unavailable. Edit the Harness and Model lines of mandates/builder.md and mandates/gatekeeper.md to match before a run."
   }
 }

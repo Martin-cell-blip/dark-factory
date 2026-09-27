@@ -10,6 +10,9 @@ private/room.txt (gitignored).
     python tools/factory_up.py              create or refresh the seats, reuse or create the room
     python tools/factory_up.py --new-room   same, but always start a fresh room (one room per run)
     python tools/factory_up.py --stop       stop every seat's runtime, keep identities and room
+    python tools/factory_up.py --workspace <repo> --new-room
+                                            point every seat at another result repository
+                                            (a practice run), with its own room
 
 Needs Band Desktop signed in (its CLI is `band`, formerly `jam`), and the coding CLIs the
 seats use (Claude Code, Codex) signed in.
@@ -71,12 +74,14 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--new-room", action="store_true")
     ap.add_argument("--stop", action="store_true")
+    ap.add_argument("--workspace", default=None, help="result repository the seats work in")
     ap.add_argument("--cli", default=None, help="path to the band/jam CLI")
     a = ap.parse_args()
 
     cli = find_cli(a.cli)
     cfg = json.loads(pathlib.Path(a.config).read_text(encoding="utf-8"))
-    workspace = str((ROOT / cfg.get("workspace", ".")).resolve())
+    workspace = str(pathlib.Path(a.workspace).resolve() if a.workspace
+                    else (ROOT / cfg.get("workspace", ".")).resolve())
 
     code, who = run(cli, "whoami")
     m = re.search(r"@(\S+) .*\[user\] ([0-9a-f-]{36})", who)
@@ -122,7 +127,8 @@ def main() -> int:
             steps = [
                 ["agent", "instructions", "set", "--as", handle, "--instructions-file", str(mandate)],
                 ["runtime", "settings", "--as", handle, *runtime_flags(s, "--")] if runtime_flags(s, "--") else None,
-                ["runtime", "template", "set", "--as", handle, *launch_flags(s), "--apply-and-restart"] if launch_flags(s) else None,
+                ["runtime", "template", "set", "--as", handle, "--spawn-cwd", workspace,
+                 *launch_flags(s), "--apply-and-restart"],
             ]
             for step in filter(None, steps):
                 code, out = run(cli, *step)
@@ -134,7 +140,7 @@ def main() -> int:
 
     owner_seat = next((s["name"] for s in seats if s.get("room_owner")), seats[0]["name"])
     owner_handle = handles[owner_seat]
-    room_file = ROOT / "private" / "room.txt"
+    room_file = pathlib.Path(workspace) / "private" / "room.txt"   # one room per result repository
     if room_file.exists() and not a.new_room:
         room = room_file.read_text(encoding="utf-8").strip()
         print(f"room {room} (reused from private/room.txt)")

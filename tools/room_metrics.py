@@ -73,16 +73,19 @@ def load_messages(path: pathlib.Path) -> list[dict]:
     for m in data:
         if not isinstance(m, dict):
             continue
-        mtype = str(m.get("message_type") or m.get("type") or "text")
+        # accepts Band's room download (camelCase) and the jam CLI's JSON (snake_case)
+        mtype = str(m.get("messageType") or m.get("message_type") or m.get("type") or "text")
         if mtype not in ("text", "error"):
             continue
         text = m.get("content") or m.get("text") or m.get("body") or ""
         if isinstance(text, dict):
             text = json.dumps(text)
-        sender = m.get("sender_name") or m.get("sender") or m.get("author") or ""
+        sender = (m.get("senderName") or m.get("sender_name") or m.get("sender")
+                  or m.get("author") or "")
         if isinstance(sender, dict):
             sender = sender.get("handle") or sender.get("name") or ""
-        ts = str(m.get("inserted_at") or m.get("created_at") or m.get("timestamp") or "")
+        ts = str(m.get("insertedAt") or m.get("inserted_at") or m.get("createdAt")
+                 or m.get("created_at") or m.get("timestamp") or "")
         out.append({"text": str(text), "sender": str(sender), "ts": ts, "type": mtype})
     out.sort(key=lambda x: x["ts"])
     return out
