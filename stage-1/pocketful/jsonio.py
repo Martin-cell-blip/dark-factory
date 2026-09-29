@@ -1,12 +1,42 @@
-"""JSON in and out: strict parsing, canonical comparison form, UTF-8 output."""
+"""JSON in and out: strict parsing, canonical comparison form, UTF-8 output.
+
+Parsing and the canonical form run at C speed for ordinary bodies, so fifty 1 MiB bodies
+in flight stay within the per-request time limit; the slower paths only run when the raw
+bytes show they are needed.
+"""
 import json
 import math
+import re
 
 from .errors import malformed
+
+_MAX_INT_DIGITS = 4000
+_LONG_INT = re.compile(rb"[0-9]{%d,}" % (_MAX_INT_DIGITS + 1))
+_SURROGATE_ESCAPE = re.compile(rb"\\u[dD][89abcdefABCDEF]")
+_HUGE_TAG = chr(0) + "integer"  # marks an oversized integer in the canonical form
+
+
+class HugeInt:
+    """A JSON integer too long for Python's int(). No field rule accepts it as a number,
+    so it fails validation with 422 rather than parsing with 400; its digits are kept
+    for replay comparison."""
+
+    def __init__(self, text: str):
+        self.text = text
 
 
 def _reject_constant(name):
     raise ValueError(f"{name} is not valid JSON")
+
+
+def _parse_int(text: str):
+    return int(text) if len(text) <= _MAX_INT_DIGITS else HugeInt(text)
+
+
+def _parse_float(text: str):
+    """1000.0 and 1e3 are the integer 1000; other numbers stay floats."""
+    value = float(text)
+    return int(value) if math.isfinite(value) and value.is_integer() else value
 
 
 def _check_strings(value) -> None:
@@ -23,30 +53,15 @@ def _check_strings(value) -> None:
             stack.extend(item)
 
 
-_MAX_INT_DIGITS = 4000
-_HUGE_TAG = chr(0) + "integer"  # marks an oversized integer in the canonical form
-
-
-class HugeInt(float):
-    """A JSON integer too long for Python's int(): an infinite number to the range rules
-    (so they answer 422, not a parse error), its digits kept for replay comparison."""
-
-    def __new__(cls, text: str):
-        value = super().__new__(cls, "-inf" if text.startswith("-") else "inf")
-        value.text = text
-        return value
-
-
-def _parse_int(text: str):
-    return int(text) if len(text) <= _MAX_INT_DIGITS else HugeInt(text)
-
-
 def parse(raw: bytes):
     """Parse a request body; anything that is not valid UTF-8 JSON is 400 malformed_request."""
+    hooks = {"parse_constant": _reject_constant, "parse_float": _parse_float}
+    if _LONG_INT.search(raw):
+        hooks["parse_int"] = _parse_int
     try:
-        value = json.loads(raw.decode("utf-8"), parse_constant=_reject_constant,
-                           parse_int=_parse_int)
-        _check_strings(value)
+        value = json.loads(raw.decode("utf-8"), **hooks)
+        if _SURROGATE_ESCAPE.search(raw):
+            _check_strings(value)
     except (UnicodeError, ValueError, RecursionError):
         raise malformed("the body is not valid JSON") from None
     return value
@@ -60,22 +75,17 @@ def parse_object(raw: bytes) -> dict:
     return value
 
 
-def _normalise(value):
+def _encode_huge(value):
     if isinstance(value, HugeInt):
         return [_HUGE_TAG, value.text]
-    if isinstance(value, bool) or value is None or isinstance(value, (int, str)):
-        return value
-    if isinstance(value, float):
-        return int(value) if math.isfinite(value) and value.is_integer() else value
-    if isinstance(value, dict):
-        return {k: _normalise(v) for k, v in value.items()}
-    return [_normalise(v) for v in value]
+    raise TypeError(f"{type(value).__name__} is not JSON")
 
 
 def canonical(value) -> str:
-    """One string per JSON value: key order, whitespace and 1000 / 1000.0 / 1e3 do not matter."""
-    return json.dumps(_normalise(value), sort_keys=True, ensure_ascii=False,
-                      separators=(",", ":"))
+    """One string per parsed JSON value: key order, whitespace and 1000 / 1000.0 / 1e3 do
+    not matter (parse already made integral numbers ints)."""
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+                      default=_encode_huge)
 
 
 def dumps(value) -> bytes:

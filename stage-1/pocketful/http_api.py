@@ -10,7 +10,9 @@ from .errors import ApiError, malformed, not_found
 from .service import Service, bearer_token
 
 CONTENT_TYPE = "application/json; charset=utf-8"
-MAX_BODY = 8 * 1024 * 1024  # decision D8
+API_BODY_LIMIT = 1024 * 1024  # decision D8: API routes
+TEST_BODY_LIMIT = 64 * 1024 * 1024  # decision D8: reset and import, never concurrent
+TEST_CONTROL_PATHS = ("/_test/reset", "/_test/import")
 DRAIN_LIMIT = 64 * 1024 * 1024
 
 
@@ -130,18 +132,18 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):  # noqa: A002 - the stdlib signature
         pass
 
-    def read_body(self) -> bytes:
+    def read_body(self, limit: int) -> bytes:
         if self.headers.get("Transfer-Encoding", "").lower() == "chunked":
-            return self._read_chunked()
+            return self._read_chunked(limit)
         length = self.headers.get("Content-Length")
         if not length:
             return b""
         if not length.isdigit():
             self.close_connection = True
             raise malformed("Content-Length must be a number")
-        if int(length) > MAX_BODY:
+        if int(length) > limit:
             self._discard(int(length))
-            raise ApiError(413, "payload_too_large", f"the body is larger than {MAX_BODY} bytes")
+            raise ApiError(413, "payload_too_large", f"the body is larger than {limit} bytes")
         return self.rfile.read(int(length))
 
     def _discard(self, length: int) -> None:
@@ -155,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             length -= len(chunk)
 
-    def _read_chunked(self) -> bytes:
+    def _read_chunked(self, limit: int) -> bytes:
         chunks, total = [], 0
         while True:
             line = self.rfile.readline(1024).split(b";")[0].strip()
@@ -169,7 +171,7 @@ class Handler(BaseHTTPRequestHandler):
                     pass
                 return b"".join(chunks)
             total += size
-            if total > MAX_BODY:
+            if total > limit:
                 self.close_connection = True
                 raise ApiError(413, "payload_too_large", "the body is too large")
             chunks.append(self.rfile.read(size))
@@ -201,7 +203,8 @@ class Handler(BaseHTTPRequestHandler):
         for name, value in parse_qsl(url.query, keep_blank_values=True):
             query.setdefault(name, value)
         try:
-            raw = self.read_body()
+            raw = self.read_body(TEST_BODY_LIMIT if path in TEST_CONTROL_PATHS
+                                 else API_BODY_LIMIT)
             fn, params, allowed = None, (), False
             for method, pattern, candidate in self.routes:
                 match = pattern.fullmatch(path)

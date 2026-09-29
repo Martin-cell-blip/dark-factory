@@ -34,5 +34,10 @@ Foreman decisions D1–D5 from the ledger are built as stated. The builder's own
   share a password in one fixture share its hash. A 1000-user fixture with 1000 distinct
   passwords resets in about 3 s within the 2 vCPU cap (audit R3; foreman D7 sets 5 s). Hashes imported with
   other scrypt parameters still verify, since the parameters are stored in the hash.
-- **B13. Body size.** Request bodies are capped at 8 MiB (foreman D8; 413
-  `payload_too_large` in the error envelope), so 50 bodies in flight stay far inside 2 GiB.
+- **B13. Body size (foreman D8, amended).** API routes cap bodies at 1 MiB; `/_test/reset`
+  and `/_test/import` at 64 MiB. A larger body gets 413 `payload_too_large` in the error
+  envelope; bodies up to 64 MiB are drained first so the client reads it. Ordinary bodies
+  parse and fingerprint at C speed (the slow paths for 4000+-digit integers and `\u`
+  surrogate escapes run only when the raw bytes contain them), and the fingerprint is
+  taken outside the lock: 50 concurrent 1 MiB bodies answer in about 2 s, peak about
+  250 MiB, under 2 vCPU / 2 GiB.

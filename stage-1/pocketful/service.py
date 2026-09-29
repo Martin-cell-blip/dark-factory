@@ -121,6 +121,7 @@ class Service:
 
     def _idempotent(self, token, key, path, body, action, guard=None):
         """Resolve a claimed key before any validation; store only successful outcomes."""
+        fingerprint = canonical(body)
         with self._lock:
             state = self._state
             user = self._user(state, token)
@@ -131,7 +132,6 @@ class Service:
             if len(key) > MAX_KEY:
                 raise validation(f"Idempotency-Key must be at most {MAX_KEY} characters")
             slot = (user["id"], "POST", path, key)
-            fingerprint = canonical(body)
             stored = state.idempotency.get(slot)
             if stored is not None:
                 if stored[0] != fingerprint:

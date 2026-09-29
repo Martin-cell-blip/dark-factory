@@ -50,9 +50,48 @@ def test_export_and_import_within_ten_seconds(reset):
     assert time.monotonic() - started < 10
 
 
-def test_bodies_above_eight_mib_are_refused_with_the_envelope(world):
-    """Decision D8: 50 maximal bodies in flight stay well within 2 GiB."""
-    oversized = b'{"to_handle": "ben", "amount": 1, "note": "' + b"x" * (8 * 1024 * 1024) + b'"}'
-    expect(world.ann.write("/payments", raw=oversized), 413, "payload_too_large")
+API_LIMIT = 1024 * 1024
+
+
+def _padded_payment(size: int) -> bytes:
+    """A valid payment body of exactly `size` bytes, grown by an ignored array field."""
+    head, tail = b'{"to_handle": "ben", "amount": 1, "pad": [', b"]}"
+    zeros = (size - len(head) - len(tail) + 1) // 2
+    body = head + b",".join([b"0"] * zeros) + tail
+    return body + b" " * (size - len(body))
+
+
+def test_api_bodies_above_one_mib_are_refused_with_the_envelope(world):
+    """Decision D8 (amended): API routes cap bodies at 1 MiB."""
+    expect(world.ann.write("/payments", raw=_padded_payment(API_LIMIT + 1)),
+           413, "payload_too_large")
     assert world.ann.balance() == 10000
     expect(world.ann.write("/payments", {"to_handle": "ben", "amount": 1}), 201)
+
+
+def test_fifty_concurrent_maximal_api_bodies_within_five_seconds(world):
+    body = _padded_payment(API_LIMIT)
+    assert len(body) == API_LIMIT
+
+    def call():
+        started = time.monotonic()
+        resp = world.ann.write("/payments", raw=body)
+        return resp, time.monotonic() - started
+
+    results = burst([call] * 50)
+    codes = statuses([r for r, _ in results])
+    assert codes == [201] * 50, codes
+    assert max(elapsed for _, elapsed in results) < 5
+    assert world.ann.balance() == 10000 - 50
+
+
+def test_thirty_mib_import_is_accepted(reset):
+    """Decision D8 (amended): reset and import take up to 64 MiB; an unchanged export of a
+    30 MiB state is imported, not refused."""
+    fx = seed.fixture(users=[seed.user(f"u{i}", 1, display_name="n" * 3000)
+                             for i in range(10000)])
+    expect(request("POST", "/_test/reset", fx, timeout=10), 204)
+    exported = expect(request("GET", "/_test/export", timeout=10), 200).body
+    assert len(exported) > 30 * 1024 * 1024
+    expect(request("POST", "/_test/import", raw=exported, timeout=10), 204)
+    assert login("u9999@pocket.test", seed.PASSWORD).balance() == 1
