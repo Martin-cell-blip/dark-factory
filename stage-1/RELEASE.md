@@ -12,12 +12,15 @@ directory, checked out at the release commit. The harness reads the shared repos
 ran, HEAD was `f8f1680`, which only adds `ledger/stage-2.json`:
 `git diff 0976b03 f8f1680 -- stage-1` is empty.
 
+Machine paths are written as `<repo>` (this repository) and `<kickoff>` (the event's kickoff
+package), which keeps them out of the repository as decision D4 intends.
+
 ## Checks
 
 | # | Check | Command | Exit |
 |---|---|---|---|
-| 1 | Structure | `git clone D:/dark-factory rel && git checkout 0976b03`; `find stage-1 -type l`; `git ls-files -s stage-1` (no mode 120000/160000); no `stage-1/.git`, no `.gitmodules`; grep for references outside the folder | 0 / 0. There are no symlinks, submodules or nested repositories. The folder holds `Dockerfile`, `RUN.md`, `DECISIONS.md`, `pocketful/` and `tests/` (unit, acceptance, holdout). Its only external needs are Python and pytest on the host for the tests. |
-| 2 | Event harness, strict | `wsl -d Ubuntu -- bash -lc "cd /mnt/d/dark-factory-wearedevs && ~/harness-venv/bin/python -m harness run --track pocketful --repo /mnt/d/dark-factory --stage 1 --mode isolated"` | 0. Stage 1 passed 147/147 collected tests. Stage 2 failed, as required. The run is `a38f3f12ce3c41309d50098c94950aa5`, revision f8f1680, mode isolated. |
+| 1 | Structure | `git clone <repo> rel && git checkout 0976b03`; `find stage-1 -type l`; `git ls-files -s stage-1` (no mode 120000/160000); no `stage-1/.git`, no `.gitmodules`; grep for references outside the folder | 0 / 0. There are no symlinks, submodules or nested repositories. The folder holds `Dockerfile`, `RUN.md`, `DECISIONS.md`, `pocketful/` and `tests/` (unit, acceptance, holdout). Its only external needs are Python and pytest on the host for the tests. |
+| 2 | Event harness, strict | `python -m harness run --track pocketful --repo <repo> --stage 1 --mode isolated`, run from the kickoff package (`<kickoff>`) through WSL | 0. Stage 1 passed 147/147 collected tests. Stage 2 failed, as required. The run is `a38f3f12ce3c41309d50098c94950aa5`, revision f8f1680, mode isolated. |
 | 3a | Build | `docker build -t gk-pocketful-s1:0976b03 .` (in `stage-1/`) | 0 |
 | 3b | Start, capped and offline | `docker network create --internal gk-s1-net`; `docker run -d --network gk-s1-net --cpus 2 --memory 2g --memory-swap 2g -e PORT=8080 gk-pocketful-s1:0976b03` (plus a second container on PORT=8081 for item 41) | 0. `/health` returned `{"status":"ok"}` 0.72 s after `docker run`. Docker's healthcheck reported healthy at 5.8 s because of its 5 s interval. Both are within the 60 s limit. An outbound connect from inside the container failed with `Errno 101 Network is unreachable`. |
 | 4a | Full test suite in containers | A runner image built on the service image, with pytest and `tests/` added and no source changes, ran on the same internal network with the same caps: `python -m pytest tests -q` (`POCKETFUL_URL=http://gk-s1-a:8080`, `POCKETFUL_URL_B=http://gk-s1-b:8081`) | 0. 547 passed in 32.1 s. Four later full runs each exited 0 with 547 passed. |
@@ -41,7 +44,7 @@ The final lines of the run, quoted exactly:
 ```
 highest contiguous stage: 1
 claimed stage: 1 on the shipped checks
-report: /mnt/d/dark-factory-wearedevs/runs/a38f3f12ce3c41309d50098c94950aa5/report.json
+report: <kickoff>/runs/a38f3f12ce3c41309d50098c94950aa5/report.json
 NOTE: this run only includes a portion of the full tests that are applied before judging; this is meant to provide directional feedback, and ultimately you may not pass the stage with the full set of tests.
 ```
 
