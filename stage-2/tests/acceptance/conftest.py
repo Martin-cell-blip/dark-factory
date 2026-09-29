@@ -1,0 +1,29 @@
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import seed  # noqa: E402
+from client import expect, login, request  # noqa: E402
+
+
+def do_reset(fx: dict) -> None:
+    expect(request("POST", "/_test/reset", fx, timeout=15), 204)
+
+
+@pytest.fixture
+def reset():
+    return do_reset
+
+
+@pytest.fixture
+def world():
+    """Ann (10000), Ben (2500) and Cat (500), EUR with 2 minor units, all signed in."""
+    fx = seed.fixture()
+    do_reset(fx)
+    clients = {u["handle"]: login(u["email"], u["password"]) for u in fx["users"]}
+    return SimpleNamespace(fixture=fx, total=seed.total(fx), **clients,
+                           everyone=list(clients.values()))

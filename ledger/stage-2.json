@@ -194,6 +194,11 @@
       "id": 37,
       "desc": "Every fixed name (route, field, code, status, data-testid) appears verbatim; code another developer can maintain (files by responsibility, spec vocabulary, no dead code)",
       "check": null
+    },
+    {
+      "id": 38,
+      "desc": "Memory headroom (carried from the stage-1 release note): peak container memory stays below 1.5 GiB through the whole suite under --memory 2g, with no OOM kill",
+      "check": null
     }
   ]
 }

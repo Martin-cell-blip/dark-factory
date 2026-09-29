@@ -89,3 +89,5 @@ Source: `pocketful/spec/stage-2.md`; stage-1.md still applies. The shipped check
    check: `python -m pytest tests/stage2/test_i36.py -q`
 37. Every fixed name (route, field, code, status, data-testid) appears verbatim; code another developer can maintain (files by responsibility, spec vocabulary, no dead code)  
    check: judged by the auditor (no command)
+38. Memory headroom (carried from the stage-1 release note): peak container memory stays below 1.5 GiB through the whole suite under --memory 2g, with no OOM kill  
+   check: judged by the auditor and gatekeeper (docker stats / cgroup memory.peak)
