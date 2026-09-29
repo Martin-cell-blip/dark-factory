@@ -10,7 +10,7 @@ from .errors import ApiError, malformed, not_found
 from .service import Service, bearer_token
 
 CONTENT_TYPE = "application/json; charset=utf-8"
-MAX_BODY = 64 * 1024 * 1024
+MAX_BODY = 16 * 1024 * 1024
 
 
 class Request:

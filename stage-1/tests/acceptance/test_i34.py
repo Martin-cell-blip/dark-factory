@@ -27,11 +27,13 @@ def test_fifty_in_flight_within_five_seconds(world):
 
 
 def test_reset_of_a_large_fixture_within_ten_seconds():
-    fx = seed.fixture(users=[seed.user(f"u{i}", 100) for i in range(100)])
+    """1000 users, each with a different password (the size the audit measured against)."""
+    fx = seed.fixture(users=[seed.user(f"u{i}", 100, password=f"password number {i}")
+                             for i in range(1000)])
     started = time.monotonic()
     expect(request("POST", "/_test/reset", fx, timeout=10), 204)
     assert time.monotonic() - started < 10
-    assert login("u99@pocket.test", seed.PASSWORD).balance() == 100
+    assert login("u999@pocket.test", "password number 999").balance() == 100
 
 
 def test_export_and_import_within_ten_seconds(reset):

@@ -68,3 +68,12 @@ def test_parse_rejects_non_json(raw):
     with pytest.raises(ApiError) as error:
         jsonio.parse(raw)
     assert error.value.code == "malformed_request"
+
+
+def test_oversized_integers_parse_and_fail_the_range_rule():
+    first = jsonio.parse(b'{"amount": 1' + b"0" * 5000 + b"}")
+    second = jsonio.parse(b'{"amount": 2' + b"0" * 5000 + b"}")
+    assert jsonio.canonical(first) != jsonio.canonical(second)
+    with pytest.raises(ApiError) as error:
+        fields.amount_value(first["amount"])
+    assert (error.value.status, error.value.code) == (422, "validation_failed")

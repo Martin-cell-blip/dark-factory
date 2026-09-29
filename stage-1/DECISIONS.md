@@ -26,3 +26,13 @@ Foreman decisions D1–D5 from the ledger are built as stated. The builder's own
 - **B9. Unknown routes** are 404 `not_found`; a known path with another method is 405
   `method_not_allowed`.
 - **B10. Zero shares.** A split request for 0 can be paid and produces a 0-amount payment.
+- **B11. Oversized integers.** A JSON integer longer than 4000 digits still parses; the
+  range rules see it as infinite (so an amount is 422, not 400) and replays compare its
+  digits.
+- **B12. Password cost and reset size.** scrypt with N=2^12, r=8, p=1 and a random salt per
+  distinct password. A reset hashes each distinct password once, in parallel; users who
+  share a password in one fixture share its hash. A 1000-user fixture with 1000 distinct
+  passwords resets in about 3 s within the 2 vCPU cap (audit R3). Hashes imported with
+  other scrypt parameters still verify, since the parameters are stored in the hash.
+- **B13. Body size.** Request bodies are capped at 16 MiB (413 `payload_too_large`), so 50
+  bodies in flight stay far inside the 2 GiB cap.

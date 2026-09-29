@@ -54,6 +54,15 @@ def _list(container: dict, name: str, required: bool) -> list:
     return value
 
 
+def _hash_all(passwords: list[str]) -> list[str]:
+    """Hash seeded passwords in parallel, each distinct password once per reset, so a
+    large fixture stays within the reset time limit (users sharing a password share a hash)."""
+    distinct = list(dict.fromkeys(passwords))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        hashed = dict(zip(distinct, pool.map(hash_password, distinct)))
+    return [hashed[p] for p in passwords]
+
+
 class State:
     def __init__(self, currency: str, minor_units: int) -> None:
         self.currency = currency
@@ -205,8 +214,7 @@ class State:
         users = _list(fixture, "users", required=True)
         for u in users:
             _require(isinstance(u.get("password"), str), "password must be a string")
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            hashes = list(pool.map(lambda u: hash_password(u["password"]), users))
+        hashes = _hash_all([u["password"] for u in users])
         for u, password_hash in zip(users, hashes):
             state.add_user(u.get("id"), u.get("email"), password_hash, u.get("display_name"),
                            u.get("handle"), _balance(u.get("balance")))

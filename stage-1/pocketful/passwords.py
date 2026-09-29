@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import os
 
-_N, _R, _P, _LEN = 2 ** 14, 8, 1, 32
+_N, _R, _P, _LEN = 2 ** 12, 8, 1, 32
 _MAXMEM = 64 * 1024 * 1024
 
 

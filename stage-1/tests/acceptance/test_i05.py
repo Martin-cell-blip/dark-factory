@@ -1,4 +1,6 @@
 """Item 5: amount rules on every endpoint that takes amount."""
+import json
+
 import pytest
 
 import seed
@@ -41,3 +43,11 @@ def test_bounds_are_inclusive(operator):
     expect(operator.write("/requests", {"payer_handle": "ben", "amount": 1000000000}), 201)
     expect(operator.write("/splits", {"amount": 1000000000,
                                       "participant_handles": ["ben"]}), 201)
+
+
+@pytest.mark.parametrize("digits", [b"1" + b"0" * 5000, b"-1" + b"0" * 5000, b"9" * 20])
+def test_huge_integer_amounts_are_422_not_400(operator, digits):
+    for path, make in ENDPOINTS:
+        raw = json.dumps(make(0)).replace(": 0", ": " + digits.decode(), 1)
+        expect(operator.write(path, raw=raw.encode()), 422, "validation_failed")
+    assert operator.balance() == 10000
