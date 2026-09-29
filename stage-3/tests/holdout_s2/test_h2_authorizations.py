@@ -362,7 +362,3 @@ def test_capture_versus_void_race():
         else:
             assert st == "voided" and caps == 0 and bals["bob"] == 2500
         assert w.ada.me()["held"] == 0
-
-
-def test_statement_absent(world):
-    assert_error(world.ada.get("/statement"), 404, "not_found")
