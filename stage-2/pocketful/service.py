@@ -8,8 +8,10 @@ import threading
 from . import fields
 from .errors import (ApiError, forbidden, not_found, request_not_pending,
                      unauthenticated, validation)
-from .jsonio import canonical
+from .jsonio import fingerprint
+from .authorization_api import AuthorizationEndpoints
 from .money import equal_split
+from .paging import page, page_params
 from .passwords import hash_password, verify_password
 from .state import State
 
@@ -28,21 +30,11 @@ def bearer_token(header) -> str:
     return parts[1]
 
 
-def _paging(query: dict) -> tuple[int, int]:
-    return (fields.query_int(query, "limit", 50, 1, 200),
-            fields.query_int(query, "offset", 0, 0, None))
-
-
-def _page(items: list, paging: tuple[int, int]) -> tuple[list, bool]:
-    limit, offset = paging
-    return items[offset:offset + limit], len(items) > offset + limit
-
-
 def _public_user(user: dict, token: str) -> dict:
     return {"user_id": user["id"], "display_name": user["display_name"], "token": token}
 
 
-class Service:
+class Service(AuthorizationEndpoints):
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._state = State.empty()
@@ -56,12 +48,18 @@ class Service:
 
     def export(self) -> dict:
         with self._lock:
-            return self._state.export()
+            return self._state_now().export()
 
     def import_(self, document: dict) -> None:
         state = State.from_export(document)
         with self._lock:
             self._state = state
+
+    def _state_now(self) -> State:
+        """The current state with expiry applied. Call it with the lock held."""
+        state = self._state
+        state.expire_due()
+        return state
 
     # ---- authentication ----------------------------------------------------------------
 
@@ -87,7 +85,7 @@ class Service:
         handle = fields.derive_handle(email)
         password_hash = hash_password(password)
         with self._lock:
-            state = self._state
+            state = self._state_now()
             if fields.email_key(email) in state.user_ids_by_email:
                 raise ApiError(409, "email_taken", "email already registered")
             if handle in state.user_ids_by_handle:
@@ -100,7 +98,7 @@ class Service:
         email = fields.required_string(body, "email")
         password = fields.required_string(body, "password")
         with self._lock:
-            state = self._state
+            state = self._state_now()
             user = state.users.get(state.user_ids_by_email.get(fields.email_key(email)))
         if user is None or not verify_password(password, user["password_hash"]):
             raise unauthenticated("wrong email or password")
@@ -111,19 +109,22 @@ class Service:
 
     def me(self, token: str) -> dict:
         with self._lock:
-            state = self._state
+            state = self._state_now()
             user = self._user(state, token)
+            held = state.holds.held_by(user["id"])
             return {"user_id": user["id"], "display_name": user["display_name"],
                     "handle": user["handle"], "balance": user["balance"],
-                    "currency": state.currency, "minor_units": state.minor_units}
+                    "total": user["balance"], "available": user["balance"] - held,
+                    "held": held, "currency": state.currency,
+                    "minor_units": state.minor_units}
 
     # ---- idempotent writes (section 7) -------------------------------------------------
 
     def _idempotent(self, token, key, path, body, action, guard=None):
         """Resolve a claimed key before any validation; store only successful outcomes."""
-        fingerprint = canonical(body)
+        digest = fingerprint(body)
         with self._lock:
-            state = self._state
+            state = self._state_now()
             user = self._user(state, token)
             if guard is not None:
                 guard(state, user)
@@ -134,12 +135,12 @@ class Service:
             slot = (user["id"], "POST", path, key)
             stored = state.idempotency.get(slot)
             if stored is not None:
-                if stored[0] != fingerprint:
+                if stored[0] != digest:
                     raise ApiError(409, "idempotency_key_reuse",
                                    "this key was used with a different body")
                 return 200, stored[1]
             response = action(state, user, body)
-            state.idempotency[slot] = (fingerprint, response)
+            state.idempotency[slot] = (digest, response)
             return 201, response
 
     @staticmethod
@@ -262,7 +263,7 @@ class Service:
 
     def _resolve_request(self, token, request_id, role: str, target: str, blocked: tuple):
         with self._lock:
-            state = self._state
+            state = self._state_now()
             user = self._user(state, token)
             request = state.requests.get(request_id)
             if request is None:
@@ -288,25 +289,25 @@ class Service:
         direction = fields.query_choice(query, "direction", DIRECTIONS)
         status = fields.query_choice(query, "status", ("pending", "paid", "declined",
                                                         "cancelled"))
-        paging = _paging(query)
+        paging = page_params(query)
         with self._lock:
-            state = self._state
+            state = self._state_now()
             user_id = self._user(state, token)["id"]
             items = [dict(r) for r in reversed(state.requests.values())
                      if (r["payer_id"] == user_id and direction != "outgoing"
                          or r["requester_id"] == user_id and direction != "incoming")
                      and (status is None or r["status"] == status)]
-        page, has_more = _page(items, paging)
-        return {"requests": page, "has_more": has_more}
+        shown, has_more = page(items, paging)
+        return {"requests": shown, "has_more": has_more}
 
     def activity(self, token, query: dict) -> dict:
-        paging = _paging(query)
+        paging = page_params(query)
         with self._lock:
-            state = self._state
+            state = self._state_now()
             user_id = self._user(state, token)["id"]
             items = [p for p in reversed(state.payments)
                      if p["visibility"] == "public"
                      or user_id in (p["from_user_id"], p["to_user_id"])]
-        page, has_more = _page(items, paging)
-        return {"payments": page, "has_more": has_more}
+        shown, has_more = page(items, paging)
+        return {"payments": shown, "has_more": has_more}
 

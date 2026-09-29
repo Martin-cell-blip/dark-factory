@@ -1,0 +1,228 @@
+{
+ "export": {
+  "track": "pocketful",
+  "format_version": 1,
+  "state": {
+   "currency": "EUR",
+   "minor_units": 2,
+   "clock": "2026-09-29T16:20:40.653503+00:00",
+   "users": [
+    {
+     "id": "u_ann",
+     "email": "ann@pocket.test",
+     "password_hash": "scrypt$4096$8$1$U+25SRIV6pVyS6jrHYsVHw==$/UZ/7vgjHMiAbXwNBYDR8yt3Oav8TkiW39q63gr9PjQ=",
+     "display_name": "Ann",
+     "handle": "ann",
+     "balance": 8750
+    },
+    {
+     "id": "u_ben",
+     "email": "ben@pocket.test",
+     "password_hash": "scrypt$4096$8$1$4p/PtO0EiIREHzK01J5eKA==$A0A7/hoWabbMTeBmr+/kHvu4spcbN6VcbiGORhiwESA=",
+     "display_name": "Ben",
+     "handle": "ben",
+     "balance": 3710
+    },
+    {
+     "id": "u_cat",
+     "email": "cat@pocket.test",
+     "password_hash": "scrypt$4096$8$1$J0x3+gcxvnr9XUpzgmIc2A==$GshPNaQxg4mmsLY0qn29XRS3tK7izRIT25TctIA0o0I=",
+     "display_name": "Cat",
+     "handle": "cat",
+     "balance": 540
+    }
+   ],
+   "tokens": [
+    {
+     "token": "VYFtUfNnrNS_robCBhANs70AsQmaTaio5FRDPD9jRZ4",
+     "user_id": "u_ann"
+    },
+    {
+     "token": "40mhsghicklQTt9lmasbYvnGE3csFPipXKNDsxDc7ws",
+     "user_id": "u_ben"
+    }
+   ],
+   "payments": [
+    {
+     "payment_id": "p_4fb54a289da29b63",
+     "from_user_id": "u_ann",
+     "from_handle": "ann",
+     "to_user_id": "u_ben",
+     "to_handle": "ben",
+     "amount": 1250,
+     "currency": "EUR",
+     "note": "lunch",
+     "visibility": "private",
+     "request_id": null,
+     "settlement_id": null,
+     "created_at": "2026-09-29T16:20:40.608828+00:00"
+    },
+    {
+     "payment_id": "p_c66af7f0850cf07f",
+     "from_user_id": "u_ben",
+     "from_handle": "ben",
+     "to_user_id": "u_cat",
+     "to_handle": "cat",
+     "amount": 40,
+     "currency": "EUR",
+     "note": "",
+     "visibility": "public",
+     "request_id": null,
+     "settlement_id": "st_7956b14e6c174203",
+     "created_at": "2026-09-29T16:20:40.639059+00:00"
+    }
+   ],
+   "requests": [
+    {
+     "request_id": "rq_a71db5f5f907448e",
+     "requester_id": "u_ben",
+     "requester_handle": "ben",
+     "payer_id": "u_ann",
+     "payer_handle": "ann",
+     "amount": 300,
+     "currency": "EUR",
+     "note": "tickets",
+     "status": "pending",
+     "payment_id": null,
+     "created_at": "2026-09-29T16:20:40.624338+00:00"
+    }
+   ],
+   "splits": [],
+   "settlements": [
+    {
+     "settlement_id": "st_7956b14e6c174203",
+     "committed_at": "2026-09-29T16:20:40.639059+00:00",
+     "payments": [
+      {
+       "payment_id": "p_c66af7f0850cf07f",
+       "from_user_id": "u_ben",
+       "from_handle": "ben",
+       "to_user_id": "u_cat",
+       "to_handle": "cat",
+       "amount": 40,
+       "currency": "EUR",
+       "note": "",
+       "visibility": "public",
+       "request_id": null,
+       "settlement_id": "st_7956b14e6c174203",
+       "created_at": "2026-09-29T16:20:40.639059+00:00"
+      }
+     ]
+    }
+   ],
+   "settlement_operator_ids": [
+    "u_ann"
+   ],
+   "idempotency": [
+    {
+     "user_id": "u_ann",
+     "method": "POST",
+     "path": "/payments",
+     "key": "stage1-pay-key",
+     "body": "{\"amount\":1250,\"note\":\"lunch\",\"to_handle\":\"ben\",\"visibility\":\"private\"}",
+     "response": {
+      "payment_id": "p_4fb54a289da29b63",
+      "from_user_id": "u_ann",
+      "from_handle": "ann",
+      "to_user_id": "u_ben",
+      "to_handle": "ben",
+      "amount": 1250,
+      "currency": "EUR",
+      "note": "lunch",
+      "visibility": "private",
+      "request_id": null,
+      "settlement_id": null,
+      "created_at": "2026-09-29T16:20:40.608828+00:00"
+     }
+    },
+    {
+     "user_id": "u_ben",
+     "method": "POST",
+     "path": "/requests",
+     "key": "289083b16e644c6f9ab53c5825fd490b",
+     "body": "{\"amount\":300,\"note\":\"tickets\",\"payer_handle\":\"ann\"}",
+     "response": {
+      "request_id": "rq_a71db5f5f907448e",
+      "requester_id": "u_ben",
+      "requester_handle": "ben",
+      "payer_id": "u_ann",
+      "payer_handle": "ann",
+      "amount": 300,
+      "currency": "EUR",
+      "note": "tickets",
+      "status": "pending",
+      "payment_id": null,
+      "created_at": "2026-09-29T16:20:40.624338+00:00"
+     }
+    },
+    {
+     "user_id": "u_ann",
+     "method": "POST",
+     "path": "/settlements",
+     "key": "stage1-settle-key",
+     "body": "{\"transfers\":[{\"amount\":40,\"from_handle\":\"ben\",\"to_handle\":\"cat\"}]}",
+     "response": {
+      "settlement_id": "st_7956b14e6c174203",
+      "committed_at": "2026-09-29T16:20:40.639059+00:00",
+      "payments": [
+       {
+        "payment_id": "p_c66af7f0850cf07f",
+        "from_user_id": "u_ben",
+        "from_handle": "ben",
+        "to_user_id": "u_cat",
+        "to_handle": "cat",
+        "amount": 40,
+        "currency": "EUR",
+        "note": "",
+        "visibility": "public",
+        "request_id": null,
+        "settlement_id": "st_7956b14e6c174203",
+        "created_at": "2026-09-29T16:20:40.639059+00:00"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ "tokens": {
+  "ann": "VYFtUfNnrNS_robCBhANs70AsQmaTaio5FRDPD9jRZ4",
+  "ben": "40mhsghicklQTt9lmasbYvnGE3csFPipXKNDsxDc7ws"
+ },
+ "payment": {
+  "key": "stage1-pay-key",
+  "body": {
+   "to_handle": "ben",
+   "amount": 1250,
+   "note": "lunch",
+   "visibility": "private"
+  },
+  "response": {
+   "payment_id": "p_4fb54a289da29b63",
+   "from_user_id": "u_ann",
+   "from_handle": "ann",
+   "to_user_id": "u_ben",
+   "to_handle": "ben",
+   "amount": 1250,
+   "currency": "EUR",
+   "note": "lunch",
+   "visibility": "private",
+   "request_id": null,
+   "settlement_id": null,
+   "created_at": "2026-09-29T16:20:40.608828+00:00"
+  }
+ },
+ "failed": {
+  "key": "stage1-failed-key",
+  "body": {
+   "to_handle": "cat",
+   "amount": 999999
+  }
+ },
+ "pending_request_id": "rq_a71db5f5f907448e",
+ "balances": {
+  "ann": 8750,
+  "ben": 3710,
+  "cat": 540
+ }
+}

@@ -224,9 +224,10 @@ def test_currency_reported(cur, mu):
     assert pay(w.ada, "bob", 7).json()["currency"] == cur
 
 
-def test_boundary_no_authorizations(world):
+def test_boundary_authorizations_present_in_stage_2(world):
+    """Stage 1's boundary is reversed in stage 2: authorizations exist."""
     r = world.ada.post("/authorizations", {"to_handle": "bob", "amount": 10}, key=new_key())
-    assert_error(r, 404, "not_found")
+    assert r.status == 201, r
 
 
 def test_huge_integer_amount_is_422_not_400(world):

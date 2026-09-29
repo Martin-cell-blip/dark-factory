@@ -12,11 +12,12 @@ def test_pay_default_public_and_request_becomes_paid(world):
     payment = expect(world.ann.write(f"/requests/{rq['request_id']}/pay", {}), 201).json()
     assert set(payment) == {"payment_id", "from_user_id", "from_handle", "to_user_id",
                             "to_handle", "amount", "currency", "note", "visibility",
-                            "request_id", "settlement_id", "created_at"}
+                            "request_id", "settlement_id", "authorization_id",
+                            "created_at"}
     assert payment["from_handle"] == "ann" and payment["to_handle"] == "ben"
     assert payment["amount"] == 1200 and payment["note"] == "taxi"
     assert payment["visibility"] == "public" and payment["request_id"] == rq["request_id"]
-    assert payment["settlement_id"] is None
+    assert payment["settlement_id"] is None and payment["authorization_id"] is None
     [listed] = world.ben.get("/requests").json()["requests"]
     assert listed["status"] == "paid" and listed["payment_id"] == payment["payment_id"]
     assert world.ann.balance() == 8800 and world.ben.balance() == 3700

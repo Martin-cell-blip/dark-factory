@@ -41,3 +41,33 @@ Foreman decisions D1–D5 from the ledger are built as stated. The builder's own
   surrogate escapes run only when the raw bytes contain them), and the fingerprint is
   taken outside the lock: 50 concurrent 1 MiB bodies answer in about 2 s, peak about
   250 MiB, under 2 vCPU / 2 GiB.
+
+## Stage 2
+
+Foreman decisions S2-D1 to S2-D6 are built as stated. The builder's own choices:
+
+- **B14. Holds.** `held` is kept per user as the sum of the remaining amounts of that user's
+  open authorisations (`pocketful/holds.py`). Every money path goes through one guard in
+  `State.commit_payments`: after the batch, each wallet's total must still cover what it
+  holds. A capture passes the hold it gives up in the same step, so it may spend exactly
+  the money reserved for it.
+- **B15. Expiry.** Every operation first expires, by the UTC wall clock, each open
+  authorisation whose `expires_at` is at or before now (a deadline heap, so no request is
+  needed at the deadline). An authorisation expired this way remembers it
+  (`clock_expired_authorization_ids` in the export): capturing it is 409
+  `authorization_expired`. One seeded as `expired`, or captured or voided, is 409
+  `authorization_not_open` (S2-D3). Void of any expired one is `authorization_not_open`.
+- **B16. Capture checks, in order.** `final` of the wrong type 400; `amount` not an integer
+  of at least 1 is 422 `validation_failed`; unknown 404; not the receiver 403; not open 409;
+  `amount` above the remainder 422 `capture_exceeds_authorization` (including amounts above
+  1000000000, since the remainder is the stated limit). `final` defaults to true.
+- **B17. Seeded authorisations.** `note`, `visibility` and `created_at` are optional as for
+  seeded payments. `captured_amount` defaults to the amount for `captured` and 0 otherwise;
+  `remaining_amount` and `payment_ids` may be given (an export always gives them). The
+  per-user sum of unexpired open holds is checked against the balance after loading.
+- **B18. Replay fingerprints.** A stored idempotent request keeps a SHA-256 digest of its
+  canonical body, not the body. A stage-1 export stores canonical bodies; import digests them,
+  so its replays still match.
+- **B19. Content negotiation.** `GET /requests` and `GET /authorizations` serve the app when
+  the `Accept` header contains `text/html`, JSON otherwise. `/`, `/split`, `/signup` and
+  `/login` always serve the app; static files live under `/assets/`.

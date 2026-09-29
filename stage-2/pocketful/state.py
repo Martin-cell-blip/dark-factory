@@ -7,9 +7,10 @@ import copy
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 
-from . import fields
+from . import fields, holds, jsonio
 from .clock import Clock, parse_time
 from .errors import ApiError, insufficient_funds, validation
+from .holds import Holds
 from .passwords import hash_password, is_hash
 
 MAX_BALANCE = 2 ** 53
@@ -37,6 +38,10 @@ def _balance(value) -> int:
 def _note(value) -> str:
     _require(isinstance(value, str) and len(value) <= fields.MAX_NOTE, "invalid note")
     return value
+
+
+def _is_count(value) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int) and value >= 0
 
 
 def _optional_id(record: dict, name: str):
@@ -76,6 +81,7 @@ class State:
         self.settlements: dict[str, dict] = {}
         self.operator_ids: list[str] = []
         self.idempotency: dict[tuple, tuple[str, dict]] = {}
+        self.holds = Holds()
         self.clock = Clock()
 
     # ---- identities -------------------------------------------------------------------
@@ -112,15 +118,26 @@ class State:
     def is_operator(self, user_id: str) -> bool:
         return user_id in self.operator_ids
 
+    def available(self, user_id: str) -> int:
+        """total - held; never negative because every debit is checked against it."""
+        return self.users[user_id]["balance"] - self.holds.held_by(user_id)
+
+    def expire_due(self) -> None:
+        """Bring authorisations up to the clock; called before every read or write."""
+        self.holds.expire_due(holds.utc_now())
+
     # ---- money --------------------------------------------------------------------------
 
     def commit_payments(self, transfers: list[dict], created_at: str,
-                        settlement_id=None) -> list[dict]:
+                        settlement_id=None, held_release: dict | None = None) -> list[dict]:
         """Move money for a batch of transfers as one step, or raise and change nothing.
 
-        Each transfer is {from, to, amount, note, visibility, request_id}. The batch commits
-        only when every wallet ends nonnegative; this is the one guard on every money path.
+        Each transfer is {from, to, amount, note, visibility, request_id, authorization_id}.
+        The batch commits only when every wallet still covers what it holds afterwards
+        (`held_release` is the hold a capture gives up in the same step). This is the one
+        guard on every money path, so held funds never pay for anything but their capture.
         """
+        held_release = held_release or {}
         deltas: dict[str, int] = {}
         for t in transfers:
             _require(t["from"]["id"] != t["to"]["id"], "a wallet cannot pay itself")
@@ -128,7 +145,7 @@ class State:
             deltas[t["to"]["id"]] = deltas.get(t["to"]["id"], 0) + t["amount"]
         for user_id, delta in deltas.items():
             after = self.users[user_id]["balance"] + delta
-            if after < 0:
+            if after < self.holds.held_by(user_id) - held_release.get(user_id, 0):
                 raise insufficient_funds()
             if after > MAX_BALANCE:
                 raise validation("the payment would take a balance out of range")
@@ -142,7 +159,8 @@ class State:
                 "to_user_id": t["to"]["id"], "to_handle": t["to"]["handle"],
                 "amount": t["amount"], "currency": self.currency, "note": t["note"],
                 "visibility": t["visibility"], "request_id": t.get("request_id"),
-                "settlement_id": settlement_id, "created_at": created_at,
+                "settlement_id": settlement_id, "authorization_id": t.get("authorization_id"),
+                "created_at": created_at,
             }
             self._add_payment(payment)
             payments.append(payment)
@@ -191,6 +209,14 @@ class State:
         self.payments.sort(key=lambda p: parse_time(p["created_at"]))
         ordered = sorted(self.requests.values(), key=lambda r: parse_time(r["created_at"]))
         self.requests = {r["request_id"]: r for r in ordered}
+        authorizations = self.holds.authorizations
+        ordered = sorted(authorizations.values(), key=lambda a: parse_time(a["created_at"]))
+        self.holds.authorizations = {a["authorization_id"]: a for a in ordered}
+
+    def _add_authorization(self, authorization: dict) -> None:
+        _require(authorization["authorization_id"] not in self.holds.authorizations,
+                 "duplicate authorization id")
+        self.holds.add(authorization)
 
     def _stamp(self, record: dict, name: str, stamps: list) -> None:
         if name in record:
@@ -216,10 +242,14 @@ class State:
         for u, password_hash in zip(users, hashes):
             state.add_user(u.get("id"), u.get("email"), password_hash, u.get("display_name"),
                            u.get("handle"), _balance(u.get("balance")))
+        if "authorization_ttl_seconds" in fixture:
+            state.holds.ttl_seconds = fields.positive_integer(
+                fixture["authorization_ttl_seconds"], "authorization_ttl_seconds")
         payments = _list(fixture, "payments", required=False)
         requests = _list(fixture, "requests", required=False)
+        authorizations = _list(fixture, "authorizations", required=False)
         stamps: list = []
-        for record in payments + requests:
+        for record in payments + requests + authorizations:
             state._stamp(record, "created_at", stamps)
         stamps = [s if s is not None else state.clock.now() for s in stamps]
         for record, stamp in zip(payments, stamps):
@@ -228,8 +258,14 @@ class State:
             request = state._seeded_request(record, stamp)
             _require(request["request_id"] not in state.requests, "duplicate request id")
             state.requests[request["request_id"]] = request
+        for record, stamp in zip(authorizations, stamps[len(payments) + len(requests):]):
+            state._add_authorization(state._seeded_authorization(record, stamp))
         state._operators(fixture)
         state._order_by_time()
+        state.expire_due()
+        for user_id, user in state.users.items():
+            _require(state.holds.held_by(user_id) <= user["balance"],
+                     "open holds exceed the balance of " + user["handle"])
         return state
 
     def _party(self, user_id) -> dict:
@@ -251,6 +287,7 @@ class State:
             "note": _note(record.get("note", "")), "visibility": visibility,
             "request_id": _optional_id(record, "request_id"),
             "settlement_id": _optional_id(record, "settlement_id"),
+            "authorization_id": _optional_id(record, "authorization_id"),
             "created_at": created_at,
         }
 
@@ -270,6 +307,33 @@ class State:
             "payment_id": _optional_id(record, "payment_id"), "created_at": created_at,
         }
 
+    def _seeded_authorization(self, record: dict, created_at: str) -> dict:
+        """A fixture authorisation. captured_amount, remaining_amount and payment_ids are
+        optional there and always present in an export."""
+        _require(fields.is_id(record.get("id")), "authorization id is required")
+        payer = self._party(record.get("from_user_id"))
+        receiver = self._party(record.get("to_user_id"))
+        _require(payer is not receiver, "an authorization needs two different users")
+        amount = fields.amount_value(record.get("amount"))
+        status = record.get("status", "open")
+        _require(status in holds.STATUSES, "invalid authorization status")
+        expires = record.get("expires_at")
+        _require(parse_time(expires) is not None, "expires_at must be RFC 3339 with an offset")
+        visibility = record.get("visibility", "public")
+        _require(visibility in fields.VISIBILITIES, "invalid visibility")
+        captured = record.get("captured_amount", amount if status == "captured" else 0)
+        _require(_is_count(captured) and captured <= amount, "invalid captured_amount")
+        remaining = record.get("remaining_amount")
+        _require(remaining is None or (_is_count(remaining) and remaining <= amount - captured
+                                       and (remaining == 0 or status == "open")),
+                 "invalid remaining_amount")
+        payment_ids = record.get("payment_ids", [])
+        _require(isinstance(payment_ids, list) and all(fields.is_id(p) for p in payment_ids),
+                 "invalid payment_ids")
+        return holds.record(record["id"], payer, receiver, amount, self.currency,
+                            _note(record.get("note", "")), visibility, status, expires,
+                            created_at, captured, remaining, payment_ids)
+
     # ---- export and import (section 10) -------------------------------------------------
 
     def export(self) -> dict:
@@ -288,6 +352,9 @@ class State:
                 "splits": list(self.splits.values()),
                 "settlements": list(self.settlements.values()),
                 "settlement_operator_ids": self.operator_ids,
+                "authorization_ttl_seconds": self.holds.ttl_seconds,
+                "authorizations": list(self.holds.authorizations.values()),
+                "clock_expired_authorization_ids": sorted(self.holds.clock_expired),
                 "idempotency": [
                     {"user_id": slot[0], "method": slot[1], "path": slot[2], "key": slot[3],
                      "body": body, "response": response}
@@ -339,14 +406,29 @@ class State:
         for entry in _list(source, "idempotency", required=True):
             slot = (entry["user_id"], entry["method"], entry["path"], entry["key"])
             _require(all(isinstance(part, str) for part in slot), "invalid idempotency slot")
-            _require(isinstance(entry["body"], str) and isinstance(entry["response"], dict),
+            body = entry["body"]
+            _require(isinstance(body, str) and isinstance(entry["response"], dict),
                      "invalid idempotency record")
-            state.idempotency[slot] = (entry["body"], entry["response"])
+            # A stage-1 export stores the canonical body itself; keep only its digest.
+            fingerprint = body if jsonio.is_fingerprint(body) else jsonio.digest(body)
+            state.idempotency[slot] = (fingerprint, entry["response"])
+        state.holds.ttl_seconds = fields.positive_integer(
+            source.get("authorization_ttl_seconds", holds.DEFAULT_TTL_SECONDS),
+            "authorization_ttl_seconds")
+        for a in _list(source, "authorizations", required=False):
+            state._add_authorization(state._seeded_authorization(
+                {"id": a["authorization_id"], **a}, state._exported_time(a["created_at"])))
+        expired = source.get("clock_expired_authorization_ids", [])
+        _require(isinstance(expired, list)
+                 and all(e in state.holds.authorizations for e in expired),
+                 "invalid clock_expired_authorization_ids")
+        state.holds.clock_expired = set(expired)
         state._operators(source)
         clock = source.get("clock")
         if clock is not None:
             state._exported_time(clock)
         state._order_by_time()
+        state.expire_due()
         return state
 
     def _exported_time(self, stamp) -> str:

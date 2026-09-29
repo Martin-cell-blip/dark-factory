@@ -15,15 +15,23 @@ HANDLE_PATTERN = re.compile(r"[a-z0-9_]{1,20}")
 MAX_ID = 64
 
 
-def amount_value(value) -> int:
-    """The one amount rule: an integral JSON number from 1 to 1000000000."""
+def positive_integer(value, name: str = "amount") -> int:
+    """An integral JSON number of at least 1 (1000, 1000.0 and 1e3 are the same value)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise validation("amount must be a number")
+        raise validation(f"{name} must be a number")
     if isinstance(value, float):
         if not math.isfinite(value) or not value.is_integer():
-            raise validation("amount must be an integer")
+            raise validation(f"{name} must be an integer")
         value = int(value)
-    if not 1 <= value <= MAX_AMOUNT:
+    if value < 1:
+        raise validation(f"{name} must be at least 1")
+    return value
+
+
+def amount_value(value) -> int:
+    """The one amount rule: an integral JSON number from 1 to 1000000000."""
+    value = positive_integer(value)
+    if value > MAX_AMOUNT:
         raise validation(f"amount must be between 1 and {MAX_AMOUNT}")
     return value
 
@@ -60,6 +68,15 @@ def required_string(body: dict, name: str) -> str:
     value = body[name]
     if not isinstance(value, str):
         raise malformed(f"{name} must be a string")
+    return value
+
+
+def optional_boolean(body: dict, name: str, default: bool) -> bool:
+    if name not in body:
+        return default
+    value = body[name]
+    if not isinstance(value, bool):
+        raise malformed(f"{name} must be true or false")
     return value
 
 

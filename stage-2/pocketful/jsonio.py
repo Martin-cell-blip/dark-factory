@@ -4,6 +4,7 @@ Parsing and the canonical form run at C speed for ordinary bodies, so fifty 1 Mi
 in flight stay within the per-request time limit; the slower paths only run when the raw
 bytes show they are needed.
 """
+import hashlib
 import json
 import math
 import re
@@ -86,6 +87,19 @@ def canonical(value) -> str:
     not matter (parse already made integral numbers ints)."""
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"),
                       default=_encode_huge)
+
+
+def digest(canonical_text: str) -> str:
+    return hashlib.sha256(canonical_text.encode("utf-8")).hexdigest()
+
+
+def fingerprint(value) -> str:
+    """What a replay must match: a digest of the canonical body, small whatever its size."""
+    return digest(canonical(value))
+
+
+def is_fingerprint(text: str) -> bool:
+    return re.fullmatch(r"[0-9a-f]{64}", text) is not None
 
 
 def dumps(value) -> bytes:

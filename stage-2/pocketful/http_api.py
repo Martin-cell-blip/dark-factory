@@ -5,7 +5,7 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, unquote, urlsplit
 
-from . import jsonio
+from . import jsonio, web
 from .errors import ApiError, malformed, not_found
 from .service import Service, bearer_token
 
@@ -39,6 +39,11 @@ class Request:
     @property
     def key(self):
         return self._handler.headers.get("Idempotency-Key")
+
+    @property
+    def wants_html(self) -> bool:
+        """The browser and the API share /requests and /authorizations (stage 2)."""
+        return "text/html" in self._handler.headers.get("Accept", "")
 
 
 def _routes(service: Service):
@@ -74,6 +79,8 @@ def _routes(service: Service):
         return service.create_request(token, req.key, req.path, req.object())
 
     def requests_list(req):
+        if req.wants_html:
+            return 200, web.page()
         return 200, service.list_requests(req.token(service), req.query)
 
     def request_pay(req):
@@ -102,6 +109,31 @@ def _routes(service: Service):
         token = req.token(service)
         return service.create_settlement(token, req.key, req.path, req.object())
 
+    def authorizations_create(req):
+        token = req.token(service)
+        return service.create_authorization(token, req.key, req.path, req.object())
+
+    def authorizations_list(req):
+        if req.wants_html:
+            return 200, web.page()
+        return 200, service.list_authorizations(req.token(service), req.query)
+
+    def authorization_capture(req):
+        token = req.token(service)
+        return service.capture_authorization(token, req.key, req.path, req.params[0],
+                                             req.optional_object())
+
+    def authorization_void(req):
+        token = req.token(service)
+        req.optional_object()
+        return 200, service.void_authorization(token, req.params[0])
+
+    def screen(req):
+        return 200, web.page()
+
+    def asset(req):
+        return 200, web.asset(req.params[0])
+
     table = [
         ("GET", "/health", health),
         ("POST", "/_test/reset", reset),
@@ -119,6 +151,12 @@ def _routes(service: Service):
         ("POST", "/splits", splits),
         ("GET", "/activity", activity),
         ("POST", "/settlements", settlements),
+        ("POST", "/authorizations", authorizations_create),
+        ("GET", "/authorizations", authorizations_list),
+        ("POST", "/authorizations/([^/]+)/capture", authorization_capture),
+        ("POST", "/authorizations/([^/]+)/void", authorization_void),
+        ("GET", "/(?:split|signup|login)?", screen),
+        ("GET", "/assets/([A-Za-z0-9_.-]+)", asset),
     ]
     return [(method, re.compile(pattern), fn) for method, pattern, fn in table]
 
@@ -178,10 +216,17 @@ class Handler(BaseHTTPRequestHandler):
             self.rfile.readline(1024)
 
     def _send(self, status: int, body) -> None:
-        payload = b"" if body is None else jsonio.dumps(body)
+        if isinstance(body, web.Asset):
+            payload, content_type = body.data, body.content_type
+        else:
+            payload = b"" if body is None else jsonio.dumps(body)
+            content_type = CONTENT_TYPE
         self.send_response(status)
-        self.send_header("Content-Type", CONTENT_TYPE)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
+        if isinstance(body, web.Asset):
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         if payload:
             self.wfile.write(payload)
