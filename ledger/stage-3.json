@@ -11,7 +11,7 @@
   "items": [
     {
       "id": 1,
-      "desc": "Stages 1 and 2 still hold: the carried tests (tests/acceptance, tests/holdout, tests/stage2, tests/holdout_s2) pass against the stage-3 service, changed only where stage 3 changes a stated behaviour, each change named in the packet",
+      "desc": "Stages 1 and 2 still hold: the carried tests (tests/acceptance, tests/holdout, tests/stage2, tests/holdout_s2) pass against the stage-3 service, changed only where stage 3 changes a stated behaviour, each change named in the packet; retired, replaced by stage-3 item 23: tests/stage2/test_i36.py and tests/holdout_s2/test_h2_authorizations.py::test_statement_absent (GET /statement absent) may be removed; whole-shape assertions on authorization objects gain closed_at",
       "check": "python -m pytest tests/acceptance tests/holdout tests/stage2 tests/holdout_s2 -q"
     },
     {
@@ -61,7 +61,7 @@
     },
     {
       "id": 11,
-      "desc": "GET /payments/{payment_id}/revisions -> {\"revisions\": [...]} in revision order including revision 1 with reason \"\"; only the two parties may read it; a third party gets 404 not_found even for a public payment; no token -> 401 unauthenticated",
+      "desc": "GET /payments/{payment_id}/revisions -> {\"revisions\": [...]} in revision order including revision 1 with reason \"\"; only the two parties may read it; a third party gets 404 not_found even for a public payment; no token -> 401 unauthenticated; each revision object carries exactly the fields of the correction 201 response {payment_id, revision, amount, effective_at, recorded_at, reason}; revision 1 has the original amount, effective_at = recorded_at = created_at and reason \"\"; a replayed correction returns the same object /revisions lists for that revision",
       "check": "python -m pytest tests/stage3/test_i11.py -q"
     },
     {
@@ -96,7 +96,7 @@
     },
     {
       "id": 18,
-      "desc": "Historical holds: GET /me?as_of=T&known_at=K reports balance = total, held and available = total - held for that same view; a hold starts at authorization creation, a nonfinal capture reduces it at capture time, and a final capture, void or expiry releases the remainder at that event's time (expiry at expires_at); events other than clock expiry are known at their server-assigned event time, and once creation is known the expiry deadline is known too; for instants beyond now an open hold expires at its deadline; without as_of use the instant the request began; authorizations expose closed_at (null while open, the event time once closed); seeded open holds count as created at reset unless created_at is supplied",
+      "desc": "Historical holds: GET /me?as_of=T&known_at=K reports balance = total, held and available = total - held for that same view; a hold starts at authorization creation, a nonfinal capture reduces it at capture time, and a final capture, void or expiry releases the remainder at that event's time (expiry at expires_at); events other than clock expiry are known at their server-assigned event time, and once creation is known the expiry deadline is known too; for instants beyond now an open hold expires at its deadline; without as_of use the instant the request began; authorizations expose closed_at (null while open, the event time once closed); seeded open holds count as created at reset unless created_at is supplied; closed_at of a closed authorization that arrives by seed or import follows S3-D8 and is never null for a closed authorization",
       "check": "python -m pytest tests/stage3/test_i18.py -q"
     },
     {
