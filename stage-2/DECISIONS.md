@@ -71,3 +71,25 @@ Foreman decisions S2-D1 to S2-D6 are built as stated. The builder's own choices:
 - **B19. Content negotiation.** `GET /requests` and `GET /authorizations` serve the app when
   the `Accept` header contains `text/html`, JSON otherwise. `/`, `/split`, `/signup` and
   `/login` always serve the app; static files live under `/assets/`.
+- **B20. The browser app.** One HTML shell for every screen; ES modules render the screen
+  named by the path (no build step, no third-party code). The session token lives in
+  `localStorage`, so a browser stays signed in across an export/import that keeps tokens.
+  Signed-out visits to `/`, `/requests`, `/split` and `/authorizations` go to `/login`.
+- **B21. Where the forms live.** Pay, request and the authorise ("Hold for someone") form
+  are on `/`; the authorise form is also on `/authorizations` beside the list. The wallet
+  card (with `wallet-refresh`) is on `/`, `/requests` and `/authorizations`.
+- **B22. Retries from forms.** A form keeps one Idempotency-Key until any field changes;
+  resubmitting unchanged (after success, refusal or an uncertain outcome) resends the same
+  key and body. Paying a request uses one key per request; a capture one key per
+  authorisation and amount. A 4xx is a refusal; no answer, a 5xx or an unreadable body is
+  uncertain, never shown as a refusal.
+- **B23. Latest refresh wins.** Each screen's reads (`/me` with its list) are one refresh;
+  a refresh applies only if no later one has been started since, whatever order the
+  responses arrive in. A failed refresh keeps the last data and marks it not up to date.
+- **B24. Amount input.** Digits with an optional point and up to `minor_units` decimals
+  (`15`, `15.5`, `15.00`); anything else (`15.005`, `1e3`, `-5`, `15.`, `.5`, `1,5`, `0`)
+  is refused in the form without sending. The capture amount is pre-filled with the
+  remaining amount in the same decimal form.
+- **B25. Dates** are shown in English (`en-GB`) whatever the browser locale;
+  `authorization-expires-{id}` shows the exact RFC 3339 `expires_at` beside a
+  human "Expires in …" label.
