@@ -6,6 +6,7 @@ Standard library only.
 """
 from __future__ import annotations
 
+import contextlib
 import http.client
 import json
 import os
@@ -219,3 +220,31 @@ def burst(fn, n=50):
 def no_5xx(resps):
     bad = [r for r in resps if r.status >= 500]
     assert not bad, f"5xx responses: {bad[:3]}"
+
+
+@contextlib.contextmanager
+def chromium():
+    """A Chromium browser for the screen holdouts, safe in any test order.
+
+    Playwright's sync API allows one driver per thread. When another suite in the same
+    pytest session already holds a live sync Playwright (a session-scoped fixture), reuse
+    that driver and launch our own browser on it; otherwise start and stop our own.
+    """
+    import gc
+    from playwright.sync_api import Playwright, sync_playwright
+    for live in [o for o in gc.get_objects() if isinstance(o, Playwright)]:
+        try:
+            browser = live.chromium.launch()
+        except Exception:  # a stopped driver left for the collector
+            continue
+        try:
+            yield browser
+        finally:
+            browser.close()
+        return
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            yield browser
+        finally:
+            browser.close()
