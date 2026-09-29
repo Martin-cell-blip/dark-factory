@@ -4,7 +4,7 @@ import { feedback, field, fill, h } from "./dom.js";
 import { formatDecimal, formatMoney, parseAmount } from "./money.js";
 import { moneyForm } from "./money-form.js";
 import { walletCard } from "./wallet.js";
-import { UNCERTAIN, formatTime, holdStatus, reason, untilText } from "./words.js";
+import { UNCERTAIN, expiryText, formatTime, holdStatus, reason } from "./words.js";
 
 // The authorise form, also offered on Home.
 export function holdForm(ctx, onDone) {
@@ -16,7 +16,7 @@ export function holdForm(ctx, onDone) {
     bodyFor: ({ handle, minor, note, visibility }) =>
       ({ to_handle: handle, amount: minor, note, visibility }),
     successText: (hold) =>
-      `Holding ${formatMoney(hold.amount, ctx.me)} for ${hold.to_handle}. ${untilText(hold.expires_at)}.`,
+      `Holding ${formatMoney(hold.amount, ctx.me)} for ${hold.to_handle}. ${expiryText(hold.expires_at)}.`,
     onDone,
   });
 }
@@ -110,9 +110,9 @@ export function authorizationsScreen(root, ctx) {
           ? h("span", {}, `Collected so far ${formatMoney(hold.captured_amount, ctx.me)}, `
               + `${formatMoney(hold.remaining_amount, ctx.me)} still held`)
           : null,
-        h("span", {}, open ? untilText(hold.expires_at) : "Expiry", " ",
-          h("time", { class: "tabular", datetime: hold.expires_at,
-                      testid: `authorization-expires-${id}` }, hold.expires_at)),
+        h("span", {}, expiryText(hold.expires_at)),
+        h("time", { class: "tabular", datetime: hold.expires_at,
+                    testid: `authorization-expires-${id}` }, hold.expires_at),
         h("span", {}, "Placed ", h("time", { datetime: hold.created_at }, formatTime(hold.created_at)))),
       actions.length ? h("div", { class: "item-actions" }, actions) : null);
   }

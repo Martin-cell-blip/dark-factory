@@ -65,13 +65,15 @@ System UI font stack (nothing loaded from the network); amounts use tabular nume
 | Held | `--held` chip "On hold 20.00 EUR" beside the total; absent when zero | Follows the same refresh rules as available |
 | Total | Secondary line "Total balance" in `--ink-muted`, `--text-sm` | Always shown; equals available when nothing is held |
 | Pending | `--pending` badge "Pending" on requests; open holds use the held badge "On hold" | Pay/decline or cancel buttons appear only on pending items |
-| Loading | Skeleton bars (animated shimmer, reduced-motion aware) in cards, `aria-busy`; submit buttons show "Sending…" and are disabled | Nothing is double-submitted while a request is in flight |
+| Loading | The top bar, navigation and Log out appear at once; the person's name and every card show skeleton bars (animated shimmer, reduced-motion aware, `aria-busy`) until the first read lands; submit buttons show "Sending…" and are disabled | Nothing is double-submitted while a request is in flight |
+| Unreachable | Inside the normal shell: a refused-coloured card "Pocketful can't be reached right now" with a Try again button | Navigation and Log out keep working |
 | Successful | `--success` box with ✓ and a sentence ("Sent 15.00 EUR to ben") | Form keeps its values; data refreshes after the write succeeds |
 | Refused | `--refused` box with ! and the reason in plain words | Inputs are kept; balance and lists refresh |
 | Uncertain | `--uncertain` box with ? and dashed border: "We couldn't confirm…" | Submitting the unchanged form retries with the same key; never shown as a refusal |
 | Empty | Centred muted illustration-free message with a hint ("No activity yet — payments you can see appear here") | Replaces the list for the feed; beside the empty lists on requests and holds |
 | Error | Refused-coloured box at the top of the card ("Couldn't load your activity") with a retry button | The last good data stays visible (stale), marked "Not up to date" |
 | Stale | Muted "Not up to date — Refresh" note under the wallet | Cleared by the next successful refresh |
+| Hold expiry | "Expires 30 Sept 2026, 03:18 (in 2 h)" or "Expired …" in local time, beside the exact RFC 3339 time | One wording for open and closed holds |
 | Closed statuses | `--neutral` badges: Paid (success colours), Declined, Cancelled, Released (voided), Collected (captured), Expired | No action buttons |
 
 ## Controls and access

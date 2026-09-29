@@ -178,6 +178,10 @@ main {
 
 .stack > :empty { display: none; }
 
+.jump-link { justify-self: start; font-weight: 600; font-size: var(--text-sm); }
+
+@media (min-width: 900px) { .jump-link { display: none; } }
+
 .columns { display: grid; gap: var(--space-5); }
 
 @media (min-width: 900px) {
@@ -447,6 +451,7 @@ input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var
 
 .skeleton-hero { height: 2.5rem; width: 60%; margin: var(--space-2) 0 var(--space-3); }
 .skeleton-line { width: 80%; margin: var(--space-2) 0; }
+.skeleton-name { width: 96px; height: 28px; opacity: 0.35; }
 
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: 0 0; } }
 

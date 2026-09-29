@@ -14,10 +14,12 @@ function logOut() {
   location.assign("/login");
 }
 
-export function topbar(me, path) {
-  const brand = h("a", { class: "brand", href: me ? "/" : "/login" },
+// me is the signed-in person; with { pending: true } the person is still loading, so the
+// navigation and log out show while their name waits in a skeleton.
+export function topbar(me, path, { pending = false } = {}) {
+  const brand = h("a", { class: "brand", href: me || pending ? "/" : "/login" },
     h("span", { class: "brand-mark", "aria-hidden": "true" }, "P"), "Pocketful");
-  if (!me) {
+  if (!me && !pending) {
     const [href, label] = path === "/login" ? ["/signup", "Create account"] : ["/login", "Log in"];
     return h("div", { class: "topbar-inner" }, brand,
       h("div", { class: "who" }, h("a", { class: "button button-quiet button-small", href }, label)));
@@ -27,9 +29,20 @@ export function topbar(me, path) {
       DESTINATIONS.map(([href, label]) =>
         h("a", { href, "aria-current": href === path ? "page" : null }, label))),
     h("div", { class: "who" },
-      h("div", { class: "who-name", testid: "current-user" },
-        h("strong", {}, me.display_name),
-        h("span", { class: "who-handle" }, "@", h("span", { testid: "current-handle" }, me.handle))),
+      me
+        ? h("div", { class: "who-name", testid: "current-user" },
+            h("strong", {}, me.display_name),
+            h("span", { class: "who-handle" }, "@", h("span", { testid: "current-handle" }, me.handle)))
+        : h("span", { class: "skeleton skeleton-name", "aria-label": "Loading your account" }),
       h("button", { type: "button", class: "button button-quiet button-small",
                     testid: "logout-button", onclick: logOut }, "Log out")));
+}
+
+// Card-shaped placeholders shown while a screen's first data loads.
+export function loadingScreen() {
+  const card = (lines) => h("div", { class: "card", "aria-busy": "true" },
+    h("span", { class: "skeleton skeleton-hero" }),
+    Array.from({ length: lines }, () => h("span", { class: "skeleton skeleton-line" })));
+  return h("div", { class: "columns columns-home" },
+    h("div", { class: "stack" }, card(1), card(3)), card(4));
 }

@@ -8,12 +8,13 @@ export function formatTime(iso) {
   return Number.isNaN(date.getTime()) ? iso : dateTime.format(date);
 }
 
-export function untilText(iso) {
+// One wording for every hold: "Expires 30 Sept 2026, 03:18 (in 2 h)" or "Expired …",
+// always in the reader's local time.
+export function expiryText(iso) {
   const minutes = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
-  if (minutes <= 0) return "Expired";
-  if (minutes < 60) return `Expires in ${minutes} min`;
-  if (minutes < 60 * 48) return `Expires in ${Math.round(minutes / 60)} h`;
-  return `Expires ${formatTime(iso)}`;
+  if (minutes <= 0) return `Expired ${formatTime(iso)}`;
+  const soon = minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`;
+  return `Expires ${formatTime(iso)} (in ${soon})`;
 }
 
 const REASONS = {
