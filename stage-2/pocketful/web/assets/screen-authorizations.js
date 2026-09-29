@@ -1,4 +1,4 @@
-// Holds (authorisations): reserve money for someone to collect later, collect or release.
+// Holds (authorisations): reserve money for someone to capture later, capture or release.
 import { call, latestWins, newKey, readAll } from "./api.js";
 import { feedback, field, fill, h } from "./dom.js";
 import { formatDecimal, formatMoney, parseAmount } from "./money.js";
@@ -11,7 +11,7 @@ export function holdForm(ctx, onDone) {
   return moneyForm(ctx, {
     prefix: "authorize", title: "Hold for someone", submitLabel: "Place hold",
     handleLabel: "For (handle)",
-    hint: "Reserve money now; they collect it later. Held money can't be spent meanwhile.",
+    hint: "Reserve money now; they capture it later. Held money can't be spent meanwhile.",
     refusedTitle: "Hold not placed", path: "/authorizations", visibility: true,
     bodyFor: ({ handle, minor, note, visibility }) =>
       ({ to_handle: handle, amount: minor, note, visibility }),
@@ -48,10 +48,10 @@ export function authorizationsScreen(root, ctx) {
     await refresh();
   }
 
-  async function collect(hold, input, button) {
+  async function capture(hold, input, button) {
     const parsed = parseAmount(input.value, ctx.me.minor_units);
     if (parsed.error) {
-      fill(banner, feedback("refused", "authorization-error", "Nothing collected", parsed.error));
+      fill(banner, feedback("refused", "authorization-error", "Nothing captured", parsed.error));
       return;
     }
     button.disabled = true;
@@ -59,8 +59,8 @@ export function authorizationsScreen(root, ctx) {
     const outcome = await call("POST", `/authorizations/${id}/capture`,
                                { body: { amount: parsed.minor }, key: keyFor(id, parsed.minor) });
     await settle(outcome, (payment) =>
-      `Collected ${formatMoney(payment.amount, ctx.me)} from ${payment.from_handle}.`,
-    "Nothing collected", button);
+      `Captured ${formatMoney(payment.amount, ctx.me)} from ${payment.from_handle}.`,
+    "Nothing captured", button);
   }
 
   async function release(hold, button) {
@@ -69,6 +69,22 @@ export function authorizationsScreen(root, ctx) {
     await settle(outcome, (voided) =>
       `Released the hold for ${voided.to_handle}; ${formatMoney(voided.amount - voided.captured_amount, ctx.me)} is available again.`,
     "Hold not released", button);
+  }
+
+  // What happened to the hold, in the reader's local time: one line per status (DESIGN.md).
+  function eventLine(hold) {
+    const money = (minor) => formatMoney(minor, ctx.me);
+    if (hold.status === "captured") {
+      return ["Captured ", h("span", { class: "amount", testid: `authorization-captured-${hold.authorization_id}` },
+        money(hold.captured_amount)), ` of ${money(hold.amount)}`];
+    }
+    if (hold.status === "voided") {
+      return `Released: ${money(hold.amount - hold.captured_amount)} back to available`
+        + (hold.captured_amount ? `, ${money(hold.captured_amount)} captured before` : "");
+    }
+    const sofar = hold.captured_amount
+      ? ` · ${money(hold.captured_amount)} captured, ${money(hold.remaining_amount)} still held` : "";
+    return expiryText(hold.expires_at) + sofar;
   }
 
   function item(hold) {
@@ -81,10 +97,10 @@ export function authorizationsScreen(root, ctx) {
       const amount = h("input", { testid: `authorization-capture-amount-${id}`, inputmode: "decimal",
                                   autocomplete: "off",
                                   value: formatDecimal(hold.remaining_amount, ctx.me.minor_units) });
-      actions.push(field(`Amount to collect (${ctx.me.currency})`, amount));
+      actions.push(field(`Amount to capture (${ctx.me.currency})`, amount));
       actions.push(h("button", { type: "button", class: "button button-primary button-small",
                                  testid: `authorization-capture-${id}`,
-                                 onclick: (e) => collect(hold, amount, e.currentTarget) }, "Collect"));
+                                 onclick: (e) => capture(hold, amount, e.currentTarget) }, "Capture"));
     }
     if (open && outgoing) {
       actions.push(h("button", { type: "button", class: "button button-danger button-small",
@@ -102,18 +118,11 @@ export function authorizationsScreen(root, ctx) {
           formatMoney(hold.amount, ctx.me)),
         h("span", { class: `badge ${badge}` }, label)),
       h("div", { class: "item-meta" },
-        hold.status === "captured"
-          ? h("span", {}, "Collected ", h("span", { class: "amount", testid: `authorization-captured-${id}` },
-              formatMoney(hold.captured_amount, ctx.me)))
-          : null,
-        open && hold.captured_amount > 0
-          ? h("span", {}, `Collected so far ${formatMoney(hold.captured_amount, ctx.me)}, `
-              + `${formatMoney(hold.remaining_amount, ctx.me)} still held`)
-          : null,
-        h("span", {}, expiryText(hold.expires_at)),
-        h("time", { class: "tabular", datetime: hold.expires_at,
-                    testid: `authorization-expires-${id}` }, hold.expires_at),
-        h("span", {}, "Placed ", h("time", { datetime: hold.created_at }, formatTime(hold.created_at)))),
+        h("span", { class: "item-event" }, eventLine(hold)),
+        h("span", {}, "Placed ", h("time", { datetime: hold.created_at }, formatTime(hold.created_at))),
+        h("span", { class: "item-exact" }, "Exact expiry, with its UTC offset: ",
+          h("time", { class: "tabular", datetime: hold.expires_at,
+                      testid: `authorization-expires-${id}` }, hold.expires_at))),
       actions.length ? h("div", { class: "item-actions" }, actions) : null);
   }
 
@@ -137,12 +146,12 @@ export function authorizationsScreen(root, ctx) {
   fill(root,
     h("h1", { class: "page-title" }, "Holds"),
     h("p", { class: "page-intro" },
-      "Money set aside for someone to collect. It stays yours until they collect it, you release it, or it expires."),
+      "Money set aside for someone to capture. It stays yours until they capture it, you release it, or it expires."),
     h("div", { class: "columns columns-home" },
       h("div", { class: "stack" }, wallet.element, holdForm(ctx, refresh)),
       h("section", { class: "card", "aria-labelledby": "holds-title" },
         h("h2", { class: "card-title", id: "holds-title" }, "Your holds"),
-        h("p", { class: "card-hint" }, "Newest first. Collect holds placed for you; release your own."),
+        h("p", { class: "card-hint" }, "Newest first. Capture holds placed for you; release your own."),
         banner, empty, list)));
   refresh();
 }

@@ -51,8 +51,9 @@ System UI font stack (nothing loaded from the network); amounts use tabular nume
 
 - **Phone (375 px, up to 719 px):** one column. The top bar holds the brand and the signed-in
   person; the four destinations sit in an equal-width tab row under it (no horizontal
-  scrolling). Cards stack: wallet, a "Jump to your activity" link, pay, request, hold, activity. Long
-  handles and notes wrap.
+  scrolling). Cards stack: wallet, a "Jump to your activity" link, pay, request, hold, activity. The
+  jump link (hidden on desktop, where the feed is beside the forms) reaches the feed without
+  scrolling past the three forms; the wallet is already first. Long handles and notes wrap.
 - **Desktop (720 px and up, content max 1080 px, centred):** the tab row joins the top bar.
   Home is two columns: wallet and the three action forms on the left (minmax 320 px), the
   activity feed on the right. Requests and holds show incoming and outgoing side by side
@@ -74,8 +75,8 @@ System UI font stack (nothing loaded from the network); amounts use tabular nume
 | Empty | Centred muted illustration-free message with a hint ("No activity yet — payments you can see appear here") | Replaces the list for the feed; beside the empty lists on requests and holds |
 | Error | Refused-coloured box at the top of the card ("Couldn't load your latest activity") pointing to Refresh | The last good data stays visible (stale), marked "Not up to date" |
 | Stale | Muted "Not up to date — Refresh" note under the wallet | Cleared by the next successful refresh |
-| Hold expiry | "Expires 30 Sept 2026, 03:18 (in 2 h)" or "Expired …" in local time, beside the exact RFC 3339 time | One wording for open and closed holds |
-| Closed statuses | `--neutral` badges: Paid (success colours), Declined, Cancelled, Released (voided), Collected (captured), Expired | No action buttons |
+| Hold lines | One human line per hold in the browser's local time: "Expires 30 Sept 2026, 03:18 (in 2 h)" while open, "Expired 29 Sept 2026, 21:18" when expired, "Captured 12.50 EUR of 20.00 EUR" or "Released: 20.00 EUR back to available" when closed; the exact `expires_at` sits on its own line, labelled "Exact expiry, with its UTC offset" | No line mixes local and UTC times, and no raw timestamp appears in human text |
+| Closed statuses | `--neutral` badges: Paid (success colours), Declined, Cancelled, Released (voided), Captured (captured), Expired | No action buttons |
 
 ## Controls and access
 

@@ -8,7 +8,7 @@ export function formatTime(iso) {
   return Number.isNaN(date.getTime()) ? iso : dateTime.format(date);
 }
 
-// One wording for every hold: "Expires 30 Sept 2026, 03:18 (in 2 h)" or "Expired …",
+// Open and expired holds: "Expires 30 Sept 2026, 03:18 (in 2 h)" or "Expired …",
 // always in the reader's local time.
 export function expiryText(iso) {
   const minutes = Math.round((new Date(iso).getTime() - Date.now()) / 60000);
@@ -25,7 +25,7 @@ const REASONS = {
   forbidden: "You can't do that with this item.",
   request_not_pending: "This request is no longer pending.",
   authorization_not_open: "This hold is no longer open.",
-  authorization_expired: "This hold has expired, so nothing can be collected.",
+  authorization_expired: "This hold has expired, so nothing can be captured.",
   capture_exceeds_authorization: "That's more than what's left on hold.",
   idempotency_key_reuse: "This was already sent with different details. Change a field and try again.",
   missing_idempotency_key: "Something went wrong preparing the request. Try again.",
@@ -55,7 +55,7 @@ const REQUEST_STATUS = {
 
 const HOLD_STATUS = {
   open: ["On hold", "badge-held"],
-  captured: ["Collected", "badge-success"],
+  captured: ["Captured", "badge-success"],
   voided: ["Released", "badge-neutral"],
   expired: ["Expired", "badge-neutral"],
 };

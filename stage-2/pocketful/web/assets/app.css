@@ -400,6 +400,8 @@ input:focus-visible, select:focus-visible { outline-offset: 0; border-color: var
   color: var(--ink-muted); font-size: var(--text-xs);
 }
 .item-amount { font-size: var(--text-lg); font-weight: 600; text-align: right; }
+.item-event { color: var(--ink); font-weight: 600; }
+.item-exact { flex-basis: 100%; }
 .item-side { display: grid; justify-items: end; gap: var(--space-1); }
 .item-actions {
   grid-column: 2 / -1;

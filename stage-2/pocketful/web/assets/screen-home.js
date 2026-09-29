@@ -12,7 +12,7 @@ function activityItem(payment, me) {
   const received = payment.to_user_id === me.user_id;
   const [glyph, tone, word] = sent ? ["↑", "direction-out", "Sent"]
     : received ? ["↓", "direction-in", "Received"] : ["↔", "", "Between others"];
-  const origin = payment.authorization_id ? "Collected hold"
+  const origin = payment.authorization_id ? "Captured hold"
     : payment.request_id ? "Paid request" : payment.settlement_id ? "Settlement" : null;
   const id = payment.payment_id;
   return h("li", { testid: `activity-item-${id}`, "data-visibility": payment.visibility },
