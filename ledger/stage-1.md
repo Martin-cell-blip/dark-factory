@@ -13,6 +13,9 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
 - D5. Boundary item 39: stage 2 adds authorizations (`POST /authorizations`), which must be absent here. Stage 2's browser screens are the other new capability; the authorizations check is the one additive, request-observable behaviour chosen.
 - D6. `note` length is counted in Unicode code points (auditor gap G7).
 - Amendment 1 (auditor coverage check): items 2, 13, 19, 24, 27, 29, 34 extended; items 41-43 added.
+- D7. The spec does not bound fixture size; item 34 is held to a 1000-user reset within 5 s (half the 10 s limit, as margin for judge hardware). Seeded passwords must still be stored with a password-hashing function.
+- D8. Request bodies are capped at 8 MiB (64 MiB x 50 in flight could exceed the 2 GiB cap).
+- Amendment 3: items 5 and 34 extended (auditor verdict on 704e4d9, R2 and R3).
 - Amendment 2: item 41 reads its second instance from POCKETFUL_URL_B.
 
 ## Items
@@ -25,7 +28,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i03.py -q`
 4. Conventions: responses are application/json; charset=utf-8; timestamps are RFC 3339 with an explicit offset; unknown request-body fields ignored; unknown query parameters ignored; every id is a string of at most 64 characters  
    check: `python -m pytest tests/acceptance/test_i04.py -q`
-5. Amounts: JSON 1000, 1000.0 and 1e3 are the same valid amount; booleans, strings, null, non-integral numbers, values below 1 and above 1000000000 are 422 validation_failed on every endpoint that takes amount  
+5. Amounts: JSON 1000, 1000.0 and 1e3 are the same valid amount; booleans, strings, null, non-integral numbers, values below 1 and above 1000000000 are 422 validation_failed on every endpoint that takes amount; a valid JSON integer of any length (e.g. 1 followed by 5000 zeros) is 422 validation_failed, never 400  
    check: `python -m pytest tests/acceptance/test_i05.py -q`
 6. Error envelope {"error": {"code": ..., "message": ...}} on every 4xx and 5xx; unparseable body or a non-object body -> 400 malformed_request; a field of the wrong JSON type (other than amount, note, visibility, which are 422) -> 400 malformed_request; a missing required field -> 422 validation_failed  
    check: `python -m pytest tests/acceptance/test_i06.py -q`
@@ -83,7 +86,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i32.py -q`
 33. POST /settlements -> 201 {settlement_id, committed_at, payments} with payments in input order; each member is an ordinary payment with settlement_id set, request_id null and created_at equal to committed_at; members follow ordinary feed visibility; replay -> 200 original complete response  
    check: `python -m pytest tests/acceptance/test_i33.py -q`
-34. Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s  
+34. Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s; reset of a 1000-user fixture answers within 5 s under the caps (decision D7); request bodies are bounded so that 50 in-flight maximal bodies stay well within 2 GiB (decision D8: a body above 8 MiB may be refused with 413 and the error envelope)  
    check: `python -m pytest tests/acceptance/test_i34.py -q`
 35. The image builds, and runs on its own with -e PORT=<port> and a port mapping, with no outbound network at run time  
    check: `docker build -t pocketful-stage-1-ledger .`

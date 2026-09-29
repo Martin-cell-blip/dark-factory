@@ -31,7 +31,7 @@
     },
     {
       "id": 5,
-      "desc": "Amounts: JSON 1000, 1000.0 and 1e3 are the same valid amount; booleans, strings, null, non-integral numbers, values below 1 and above 1000000000 are 422 validation_failed on every endpoint that takes amount",
+      "desc": "Amounts: JSON 1000, 1000.0 and 1e3 are the same valid amount; booleans, strings, null, non-integral numbers, values below 1 and above 1000000000 are 422 validation_failed on every endpoint that takes amount; a valid JSON integer of any length (e.g. 1 followed by 5000 zeros) is 422 validation_failed, never 400",
       "check": "python -m pytest tests/acceptance/test_i05.py -q"
     },
     {
@@ -176,7 +176,7 @@
     },
     {
       "id": 34,
-      "desc": "Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s",
+      "desc": "Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s; reset of a 1000-user fixture answers within 5 s under the caps (decision D7); request bodies are bounded so that 50 in-flight maximal bodies stay well within 2 GiB (decision D8: a body above 8 MiB may be refused with 413 and the error envelope)",
       "check": "python -m pytest tests/acceptance/test_i34.py -q"
     },
     {
