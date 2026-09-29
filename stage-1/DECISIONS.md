@@ -26,14 +26,14 @@ Foreman decisions D1–D5 from the ledger are built as stated. The builder's own
 - **B9. Unknown routes** are 404 `not_found`; a known path with another method is 405
   `method_not_allowed`.
 - **B10. Zero shares.** A split request for 0 can be paid and produces a 0-amount payment.
-- **B11. Oversized integers.** A JSON integer longer than 4000 digits still parses; the
-  range rules see it as infinite (so an amount is 422, not 400) and replays compare its
+- **B11. Oversized integers.** A JSON integer longer than 4000 digits still parses; no
+  field rule accepts it as a number (so an amount is 422, not 400) and replays compare its
   digits.
-- **B12. Password cost and reset size.** scrypt with N=2^12, r=8, p=1 and a random salt per
-  distinct password. A reset hashes each distinct password once, in parallel; users who
-  share a password in one fixture share its hash. A 1000-user fixture with 1000 distinct
-  passwords resets in about 3 s within the 2 vCPU cap (audit R3; foreman D7 sets 5 s). Hashes imported with
-  other scrypt parameters still verify, since the parameters are stored in the hash.
+- **B12. Password cost and reset size.** scrypt with N=2^12, r=8, p=1 and a random salt for
+  every user, seeded users included (foreman F1). A reset hashes the seeded passwords in
+  parallel; a 1000-user fixture resets in about 3 s within the 2 vCPU cap (audit R3;
+  foreman D7 sets 5 s). Hashes imported with other scrypt parameters still verify, since
+  the parameters are stored in the hash.
 - **B13. Body size (foreman D8, amended).** API routes cap bodies at 1 MiB; `/_test/reset`
   and `/_test/import` at 64 MiB. A larger body gets 413 `payload_too_large` in the error
   envelope; bodies up to 64 MiB are drained first so the client reads it. Ordinary bodies

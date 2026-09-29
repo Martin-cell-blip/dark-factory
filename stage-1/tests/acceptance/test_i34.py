@@ -88,10 +88,10 @@ def test_fifty_concurrent_maximal_api_bodies_within_five_seconds(world):
 def test_thirty_mib_import_is_accepted(reset):
     """Decision D8 (amended): reset and import take up to 64 MiB; an unchanged export of a
     30 MiB state is imported, not refused."""
-    fx = seed.fixture(users=[seed.user(f"u{i}", 1, display_name="n" * 3000)
-                             for i in range(10000)])
+    fx = seed.fixture(users=[seed.user(f"u{i}", 1, display_name="n" * 32000)
+                             for i in range(1000)])
     expect(request("POST", "/_test/reset", fx, timeout=10), 204)
     exported = expect(request("GET", "/_test/export", timeout=10), 200).body
     assert len(exported) > 30 * 1024 * 1024
     expect(request("POST", "/_test/import", raw=exported, timeout=10), 204)
-    assert login("u9999@pocket.test", seed.PASSWORD).balance() == 1
+    assert login("u999@pocket.test", seed.PASSWORD).balance() == 1

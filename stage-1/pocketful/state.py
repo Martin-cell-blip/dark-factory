@@ -55,12 +55,10 @@ def _list(container: dict, name: str, required: bool) -> list:
 
 
 def _hash_all(passwords: list[str]) -> list[str]:
-    """Hash seeded passwords in parallel, each distinct password once per reset, so a
-    large fixture stays within the reset time limit (users sharing a password share a hash)."""
-    distinct = list(dict.fromkeys(passwords))
+    """Hash seeded passwords in parallel, each with its own random salt, so a large
+    fixture stays within the reset time limit and equal passwords never share a hash."""
     with ThreadPoolExecutor(max_workers=8) as pool:
-        hashed = dict(zip(distinct, pool.map(hash_password, distinct)))
-    return [hashed[p] for p in passwords]
+        return list(pool.map(hash_password, passwords))
 
 
 class State:
