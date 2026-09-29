@@ -13,6 +13,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
 - D5. Boundary item 39: stage 2 adds authorizations (`POST /authorizations`), which must be absent here. Stage 2's browser screens are the other new capability; the authorizations check is the one additive, request-observable behaviour chosen.
 - D6. `note` length is counted in Unicode code points (auditor gap G7).
 - Amendment 1 (auditor coverage check): items 2, 13, 19, 24, 27, 29, 34 extended; items 41-43 added.
+- Amendment 2: item 41 reads its second instance from POCKETFUL_URL_B.
 
 ## Items
 
@@ -96,7 +97,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i39.py -q`
 40. Every fixed name (route, field, error code, status, fixture key) appears verbatim; nothing from existing products' source, API docs or schemas is used  
    check: judged by the auditor (no command)
-41. Export from one container imported into a fresh container on a different port restores logins, bearer tokens, balances, payments, requests and idempotent replays: no dependency on the source process, files, volume, port or network address  
+41. Export from one container imported into a fresh container on a different port restores logins, bearer tokens, balances, payments, requests and idempotent replays: no dependency on the source process, files, volume, port or network address; the second instance is read from env POCKETFUL_URL_B (a second container started on a different port, documented in RUN.md); the test fails, never skips, when POCKETFUL_URL_B is unset  
    check: `python -m pytest tests/acceptance/test_i41.py -q`
 42. Exact arithmetic up to 2^53: a seeded balance of 9007199254740991 reads back exactly on GET /me and through export/import; a payment of 1000000000 from a balance near 2^53 leaves exact balances and the seeded total conserved  
    check: `python -m pytest tests/acceptance/test_i42.py -q`

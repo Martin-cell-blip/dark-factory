@@ -212,7 +212,7 @@
     },
     {
       "id": 41,
-      "desc": "Export from one container imported into a fresh container on a different port restores logins, bearer tokens, balances, payments, requests and idempotent replays: no dependency on the source process, files, volume, port or network address",
+      "desc": "Export from one container imported into a fresh container on a different port restores logins, bearer tokens, balances, payments, requests and idempotent replays: no dependency on the source process, files, volume, port or network address; the second instance is read from env POCKETFUL_URL_B (a second container started on a different port, documented in RUN.md); the test fails, never skips, when POCKETFUL_URL_B is unset",
       "check": "python -m pytest tests/acceptance/test_i41.py -q"
     },
     {
