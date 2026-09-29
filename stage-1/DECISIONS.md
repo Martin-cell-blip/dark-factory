@@ -32,7 +32,7 @@ Foreman decisions D1–D5 from the ledger are built as stated. The builder's own
 - **B12. Password cost and reset size.** scrypt with N=2^12, r=8, p=1 and a random salt per
   distinct password. A reset hashes each distinct password once, in parallel; users who
   share a password in one fixture share its hash. A 1000-user fixture with 1000 distinct
-  passwords resets in about 3 s within the 2 vCPU cap (audit R3). Hashes imported with
+  passwords resets in about 3 s within the 2 vCPU cap (audit R3; foreman D7 sets 5 s). Hashes imported with
   other scrypt parameters still verify, since the parameters are stored in the hash.
-- **B13. Body size.** Request bodies are capped at 16 MiB (413 `payload_too_large`), so 50
-  bodies in flight stay far inside the 2 GiB cap.
+- **B13. Body size.** Request bodies are capped at 8 MiB (foreman D8; 413
+  `payload_too_large` in the error envelope), so 50 bodies in flight stay far inside 2 GiB.

@@ -27,12 +27,12 @@ def test_fifty_in_flight_within_five_seconds(world):
 
 
 def test_reset_of_a_large_fixture_within_ten_seconds():
-    """1000 users, each with a different password (the size the audit measured against)."""
+    """Decision D7: 1000 users, here each with a different password, within 5 s."""
     fx = seed.fixture(users=[seed.user(f"u{i}", 100, password=f"password number {i}")
                              for i in range(1000)])
     started = time.monotonic()
     expect(request("POST", "/_test/reset", fx, timeout=10), 204)
-    assert time.monotonic() - started < 10
+    assert time.monotonic() - started < 5
     assert login("u999@pocket.test", "password number 999").balance() == 100
 
 
@@ -48,3 +48,11 @@ def test_export_and_import_within_ten_seconds(reset):
     started = time.monotonic()
     expect(request("POST", "/_test/import", document, timeout=10), 204)
     assert time.monotonic() - started < 10
+
+
+def test_bodies_above_eight_mib_are_refused_with_the_envelope(world):
+    """Decision D8: 50 maximal bodies in flight stay well within 2 GiB."""
+    oversized = b'{"to_handle": "ben", "amount": 1, "note": "' + b"x" * (8 * 1024 * 1024) + b'"}'
+    expect(world.ann.write("/payments", raw=oversized), 413, "payload_too_large")
+    assert world.ann.balance() == 10000
+    expect(world.ann.write("/payments", {"to_handle": "ben", "amount": 1}), 201)

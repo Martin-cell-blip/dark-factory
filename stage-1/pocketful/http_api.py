@@ -10,7 +10,8 @@ from .errors import ApiError, malformed, not_found
 from .service import Service, bearer_token
 
 CONTENT_TYPE = "application/json; charset=utf-8"
-MAX_BODY = 16 * 1024 * 1024
+MAX_BODY = 8 * 1024 * 1024  # decision D8
+DRAIN_LIMIT = 64 * 1024 * 1024
 
 
 class Request:
@@ -135,10 +136,24 @@ class Handler(BaseHTTPRequestHandler):
         length = self.headers.get("Content-Length")
         if not length:
             return b""
-        if not length.isdigit() or int(length) > MAX_BODY:
+        if not length.isdigit():
             self.close_connection = True
-            raise ApiError(413, "payload_too_large", "the body is too large or unsized")
+            raise malformed("Content-Length must be a number")
+        if int(length) > MAX_BODY:
+            self._discard(int(length))
+            raise ApiError(413, "payload_too_large", f"the body is larger than {MAX_BODY} bytes")
         return self.rfile.read(int(length))
+
+    def _discard(self, length: int) -> None:
+        """Drain a moderately oversized body so the client can read the 413; drop the rest."""
+        self.close_connection = True
+        if length > DRAIN_LIMIT:
+            return
+        while length > 0:
+            chunk = self.rfile.read(min(length, 65536))
+            if not chunk:
+                return
+            length -= len(chunk)
 
     def _read_chunked(self) -> bytes:
         chunks, total = [], 0
