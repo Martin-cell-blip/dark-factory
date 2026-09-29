@@ -51,3 +51,18 @@ def test_no_balance_checked_and_not_a_feed_item(world):
     for viewer in world.everyone:
         assert viewer.get("/activity").json()["payments"] == []
     assert world.cat.balance() == 500
+
+
+def test_split_requests_belong_to_their_two_parties(world):
+    body = expect(world.ann.write("/splits", {"amount": 900,
+                                              "participant_handles": ["ann", "ben"]}),
+                  201).json()
+    [req] = body["requests"]
+    rid = req["request_id"]
+    assert rid in [r["request_id"] for r in world.ann.get("/requests").json()["requests"]]
+    assert rid in [r["request_id"] for r in world.ben.get("/requests").json()["requests"]]
+    assert world.cat.get("/requests").json()["requests"] == []
+    expect(world.cat.write(f"/requests/{rid}/pay", {}), 403, "forbidden")
+    payment = expect(world.ben.write(f"/requests/{rid}/pay", {}), 201).json()
+    assert payment["request_id"] == rid and payment["amount"] == 450
+    assert world.ann.balance() == 10450 and world.ben.balance() == 2050
