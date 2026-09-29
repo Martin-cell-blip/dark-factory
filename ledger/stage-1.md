@@ -11,12 +11,14 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
 - D3. `note: null` is 422 `validation_failed` (stated in §5). A missing required field is 422 `validation_failed`; a wrong-typed field other than amount/note/visibility is 400 `malformed_request`.
 - D4. The event harness run (item 37) carries no command in the committed ledger, to keep machine paths out of the repository; the auditor and gatekeeper run it from the kickoff package.
 - D5. Boundary item 39: stage 2 adds authorizations (`POST /authorizations`), which must be absent here. Stage 2's browser screens are the other new capability; the authorizations check is the one additive, request-observable behaviour chosen.
+- D6. `note` length is counted in Unicode code points (auditor gap G7).
+- Amendment 1 (auditor coverage check): items 2, 13, 19, 24, 27, 29, 34 extended; items 41-43 added.
 
 ## Items
 
 1. Listens on 0.0.0.0 using PORT (default 8080); GET /health -> 200 {"status": "ok"} within 60 s of container start  
    check: `python -m pytest tests/acceptance/test_i01.py -q`
-2. POST /_test/reset (no auth) replaces all state with the fixture and returns 204; later requests see only that fixture; repeated resets work; seeded users log in with their password immediately; seeded balance is the post-payment balance (seeded payments are not replayed); seeded payments and requests are readable; settlement_operator_ids defaults to []  
+2. POST /_test/reset (no auth) replaces all state with the fixture and returns 204; later requests see only that fixture; repeated resets work; seeded users log in with their password immediately; seeded balance is the post-payment balance (seeded payments are not replayed); seeded payments and requests are readable; settlement_operator_ids defaults to []; seeded user, payment and request ids come back verbatim (GET /me user_id, activity payment_id, GET /requests request_id) and seeded non-pending request statuses are honoured  
    check: `python -m pytest tests/acceptance/test_i02.py -q`
 3. Reset fixture with a balance below zero -> 422 validation_failed and state unchanged; minor_units 0, 2 and 3 (JPY, EUR, BHD) accepted and reported by GET /me  
    check: `python -m pytest tests/acceptance/test_i03.py -q`
@@ -38,7 +40,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i11.py -q`
 12. POST /payments -> 201 {payment_id, from_user_id, from_handle, to_user_id, to_handle, amount, currency, note, visibility, request_id: null, settlement_id: null, created_at}; note defaults to "", visibility defaults to "public"; debit and credit are one atomic step  
    check: `python -m pytest tests/acceptance/test_i12.py -q`
-13. POST /payments errors: balance below amount -> 409 insufficient_funds; to_handle is own handle -> 422 self_payment; note over 200 chars or non-string (including null) -> 422 validation_failed; visibility neither public nor private -> 422 validation_failed; unknown handle -> 404 not_found; a failed payment leaves no trace in either wallet or any feed  
+13. POST /payments errors: balance below amount -> 409 insufficient_funds; to_handle is own handle -> 422 self_payment; note over 200 chars or non-string (including null) -> 422 validation_failed; visibility neither public nor private -> 422 validation_failed; unknown handle -> 404 not_found; a failed payment leaves no trace in either wallet or any feed; note length is counted in Unicode code points (200 emoji valid, 201 code points -> 422)  
    check: `python -m pytest tests/acceptance/test_i13.py -q`
 14. note is stored and returned verbatim (no trim, escape or normalisation); Unicode and emoji round-trip byte for byte on payments, requests and splits  
    check: `python -m pytest tests/acceptance/test_i14.py -q`
@@ -50,7 +52,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i17.py -q`
 18. POST /requests -> 201 {request_id, requester_id, requester_handle, payer_id, payer_handle, amount, currency, note, status: "pending", payment_id: null, created_at}; payer balance not checked; payer_handle own handle -> 422 self_request; note over 200 -> 422 validation_failed; unknown handle -> 404 not_found  
    check: `python -m pytest tests/acceptance/test_i18.py -q`
-19. POST /requests/{id}/pay: body {visibility} optional default public, chosen by the payer; 201 with a payment shaped exactly as POST /payments with request_id set; request becomes paid with payment_id; not pending -> 409 request_not_pending; short -> 409 insufficient_funds changing nothing and later payable when funds arrive; not the payer -> 403 forbidden; unknown -> 404 not_found; replay -> 200 original payment even though paid, never 409 request_not_pending; {} vs {"visibility": "public"} under one key -> 409 idempotency_key_reuse  
+19. POST /requests/{id}/pay: body {visibility} optional default public, chosen by the payer; 201 with a payment shaped exactly as POST /payments with request_id set; request becomes paid with payment_id; not pending -> 409 request_not_pending; short -> 409 insufficient_funds changing nothing and later payable when funds arrive; not the payer -> 403 forbidden; unknown -> 404 not_found; replay -> 200 original payment even though paid, never 409 request_not_pending; {} vs {"visibility": "public"} under one key -> 409 idempotency_key_reuse; the payment carries settlement_id: null  
    check: `python -m pytest tests/acceptance/test_i19.py -q`
 20. POST /requests/{id}/decline (no idempotency key, payer only) -> 200 request with status declined; declining again -> 200 current state; paid or cancelled -> 409 request_not_pending; not the payer -> 403 forbidden; unknown -> 404 not_found  
    check: `python -m pytest tests/acceptance/test_i20.py -q`
@@ -60,17 +62,17 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i22.py -q`
 23. Integer query parameters (limit, offset on /requests and /activity) are plain decimal digits: 1e9, 4.0, +4, -1, 0 (limit), 201 (limit) and non-numeric -> 422 validation_failed  
    check: `python -m pytest tests/acceptance/test_i23.py -q`
-24. POST /splits -> 201 {split_id, amount, currency, note, shares:[{handle, amount}], requests:[...], created_at}; shares cover every participant including the caller in the given order and sum to amount; requests are pending, one per participant except the caller, same order, caller as requester; a share of 0 still gets a request; caller-only split is valid with requests []; no balance is checked; a split is not a feed item  
+24. POST /splits -> 201 {split_id, amount, currency, note, shares:[{handle, amount}], requests:[...], created_at}; shares cover every participant including the caller in the given order and sum to amount; requests are pending, one per participant except the caller, same order, caller as requester; a share of 0 still gets a request; caller-only split is valid with requests []; no balance is checked; a split is not a feed item; each request a split creates appears in GET /requests for its requester and its payer, is payable by that payer through /requests/{id}/pay, and is not visible to a third party  
    check: `python -m pytest tests/acceptance/test_i24.py -q`
 25. POST /splits errors: amount invalid -> 422 validation_failed; participant_handles empty or with a duplicate -> 422 validation_failed; note over 200 -> 422 validation_failed; any unknown handle -> 404 not_found  
    check: `python -m pytest tests/acceptance/test_i25.py -q`
 26. Section 9 equal split: whole minor units, sum exact, differ by at most 1, larger shares to the first participants in order: 1000/3 -> 334,333,333; 1/3 -> 1,0,0; 10/3 -> 4,3,3; 999/3 -> 333,333,333; 5/5 -> 1,1,1,1,1; reordering handles moves the extra unit; splits independent; balances still sum to seeded total after paying splits in full  
    check: `python -m pytest tests/acceptance/test_i26.py -q`
-27. GET /activity -> {payments, has_more}: payments only; a payment appears iff visibility is public or the caller is sender or receiver; private visible to both parties, hidden from third parties; requests and splits never appear; newest first by created_at; limit, offset, has_more as on GET /requests  
+27. GET /activity -> {payments, has_more}: payments only; a payment appears iff visibility is public or the caller is sender or receiver; private visible to both parties, hidden from third parties; requests and splits never appear; newest first by created_at; limit, offset, has_more as on GET /requests; every activity item, seeded payments included, carries settlement_id (null for nonmembers)  
    check: `python -m pytest tests/acceptance/test_i27.py -q`
 28. GET /_test/export (no auth) -> 200 {track: "pocketful", format_version: 1, state: {...}}; an atomic read-only snapshot unchanged by later writes  
    check: `python -m pytest tests/acceptance/test_i28.py -q`
-29. POST /_test/import (no auth) -> 204, atomic replacement not merge, repeatable without duplicates; preserves accounts and hashed-password login, existing bearer tokens, currency, balances, payments, requests, operator permissions, settlement membership, ids, timestamps, completed idempotent bodies and original responses (replay -> 200 original); failed keys stay reusable; removes all previous destination data and credentials; invalid JSON -> 400 malformed_request; missing fields, wrong track or format_version, invalid state -> 422 validation_failed with state unchanged; reset clears imported state  
+29. POST /_test/import (no auth) -> 204, atomic replacement not merge, repeatable without duplicates; preserves accounts and hashed-password login, existing bearer tokens, currency, balances, payments, requests, operator permissions, settlement membership, ids, timestamps, completed idempotent bodies and original responses (replay -> 200 original); failed keys stay reusable; removes all previous destination data and credentials; invalid JSON -> 400 malformed_request; missing fields, wrong track or format_version, invalid state -> 422 validation_failed with state unchanged; reset clears imported state; payments after import still carry settlement_id (null for nonmembers)  
    check: `python -m pytest tests/acceptance/test_i29.py -q`
 30. POST /settlements: no token -> 401 unauthenticated; authenticated non-operator -> 403 forbidden; Idempotency-Key required; operators come from fixture settlement_operator_ids (default []); operator status grants no access to other users' requests or private activity  
    check: `python -m pytest tests/acceptance/test_i30.py -q`
@@ -80,7 +82,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i32.py -q`
 33. POST /settlements -> 201 {settlement_id, committed_at, payments} with payments in input order; each member is an ordinary payment with settlement_id set, request_id null and created_at equal to committed_at; members follow ordinary feed visibility; replay -> 200 original complete response  
    check: `python -m pytest tests/acceptance/test_i33.py -q`
-34. Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset answers within 10 s  
+34. Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s  
    check: `python -m pytest tests/acceptance/test_i34.py -q`
 35. The image builds, and runs on its own with -e PORT=<port> and a port mapping, with no outbound network at run time  
    check: `docker build -t pocketful-stage-1-ledger .`
@@ -94,3 +96,9 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i39.py -q`
 40. Every fixed name (route, field, error code, status, fixture key) appears verbatim; nothing from existing products' source, API docs or schemas is used  
    check: judged by the auditor (no command)
+41. Export from one container imported into a fresh container on a different port restores logins, bearer tokens, balances, payments, requests and idempotent replays: no dependency on the source process, files, volume, port or network address  
+   check: `python -m pytest tests/acceptance/test_i41.py -q`
+42. Exact arithmetic up to 2^53: a seeded balance of 9007199254740991 reads back exactly on GET /me and through export/import; a payment of 1000000000 from a balance near 2^53 leaves exact balances and the seeded total conserved  
+   check: `python -m pytest tests/acceptance/test_i42.py -q`
+43. An operator may execute a settlement across any wallets: an operator who is party to none of the transfers (ada->bob, bob->cy) settles successfully  
+   check: `python -m pytest tests/acceptance/test_i43.py -q`
