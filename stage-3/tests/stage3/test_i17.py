@@ -2,7 +2,7 @@
 import seed
 from client import Client, expect, new_key, request
 from sources import stage1_export, stage2_export
-from timefx import ago, correct, me_at, pay, signed_in, statement
+from timefx import ago, ahead, correct, me_at, pay, signed_in, statement
 
 
 def _import(document):
@@ -48,7 +48,8 @@ def test_a_stage_two_export(reset):
         "a stage-2 void time was not kept: it closes at import time (S3-D8)")
     assert me_at(ann, as_of=source["voided"]["created_at"])["held"] == 2000, (
         "an imported void without its time holds nothing historically")
-    now = me_at(ann, as_of=ago(seconds=0))
+    # A minute ahead: after every imported event whatever the clocks, before the hold expires.
+    now = me_at(ann, as_of=ahead(minutes=1))
     assert (now["total"], now["held"], now["available"]) == (9300, 2000, 7300)
     before_capture = me_at(ann, as_of=source["captured"]["created_at"])
     assert (before_capture["total"], before_capture["held"]) == (10000, 2900)

@@ -1,7 +1,7 @@
 """Item 15: concurrency on corrections and snapshots."""
 from burst import burst, statuses
 from client import expect, new_key
-from timefx import ago, me_at, pay, statement
+from timefx import ago, ahead, me_at, pay, statement
 
 
 def test_one_expected_revision_wins(world):
@@ -50,6 +50,6 @@ def test_snapshots_stay_frozen_under_concurrent_writes(world):
     again = statement(world.ann, snapshot=frozen["snapshot"])
     assert again["entries"] == frozen["entries"]
     assert again["closing_balance"] == frozen["closing_balance"]
-    views = [me_at(c, as_of=ago(seconds=0)) for c in world.everyone]
+    views = [me_at(c, as_of=ahead(seconds=5)) for c in world.everyone]
     assert sum(v["balance"] for v in views) == world.total
     assert all(v["balance"] >= 0 and v["available"] >= 0 for v in views)
