@@ -48,7 +48,12 @@ def stage2_export() -> dict:
                             tokens["ann"], "s2-cap"), 201).json()
     capture = expect(_call(base, "POST", f"/authorizations/{captured['authorization_id']}/capture",
                            {"amount": 600}, tokens["ben"], "s2-capture"), 201).json()
+    voided = expect(_call(base, "POST", "/authorizations", {"to_handle": "ben", "amount": 300},
+                          tokens["ann"], "s2-void"), 201).json()
+    expect(_call(base, "POST", f"/authorizations/{voided['authorization_id']}/void", {},
+                 tokens["ann"]), 200)
     paid = expect(_call(base, "POST", "/payments", {"to_handle": "ben", "amount": 100},
                         tokens["ann"], "s2-pay"), 201).json()
     return {"export": expect(_call(base, "GET", "/_test/export"), 200).json(), "tokens": tokens,
-            "open_hold": open_hold, "captured": captured, "capture": capture, "payment": paid}
+            "open_hold": open_hold, "captured": captured, "capture": capture, "payment": paid,
+            "voided": voided}

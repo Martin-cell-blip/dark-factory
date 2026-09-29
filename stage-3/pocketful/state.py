@@ -8,7 +8,7 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 
 from . import fields, holds, jsonio
-from .clock import Clock, parse_time
+from .clock import Clock, format_time, parse_time
 from .errors import ApiError, insufficient_funds, validation
 from .history import Revisions
 from .holds import Holds
@@ -275,6 +275,9 @@ class State:
             state.requests[request["request_id"]] = request
         for record, stamp in zip(authorizations, stamps[len(payments) + len(requests):]):
             state._add_authorization(state._seeded_authorization(record, stamp))
+        loaded_at = format_time(holds.utc_now())
+        for authorization in state.holds.authorizations.values():
+            state._settle_closed(authorization, loaded_at, lifecycle_recorded=False)
         state._operators(fixture)
         state._order_by_time()
         state.expire_due()
@@ -345,7 +348,7 @@ class State:
         payment_ids = record.get("payment_ids", [])
         _require(isinstance(payment_ids, list) and all(fields.is_id(p) for p in payment_ids),
                  "invalid payment_ids")
-        closed_at = None if status == "open" else record.get("closed_at") or created_at
+        closed_at = None if status == "open" else record.get("closed_at")
         _require(closed_at is None or parse_time(closed_at) is not None, "invalid closed_at")
         return holds.record(record["id"], payer, receiver, amount, self.currency,
                             _note(record.get("note", "")), visibility, status, expires,
@@ -372,6 +375,7 @@ class State:
                 "authorization_ttl_seconds": self.holds.ttl_seconds,
                 "authorizations": list(self.holds.authorizations.values()),
                 "clock_expired_authorization_ids": sorted(self.holds.clock_expired),
+                "authorizations_without_history": sorted(self.holds.without_history),
                 "corrections": self.revisions.corrections(),
                 "snapshots": [{"token": token, **snapshot}
                               for token, snapshot in self.snapshots.items()],
@@ -443,9 +447,14 @@ class State:
                  and all(e in state.holds.authorizations for e in expired),
                  "invalid clock_expired_authorization_ids")
         state.holds.clock_expired = set(expired)
-        for a in _list(source, "authorizations", required=False):
-            if "closed_at" not in a:
-                state._derive_closed_at(state.holds.authorizations[a["authorization_id"]])
+        without = source.get("authorizations_without_history", [])
+        _require(isinstance(without, list)
+                 and all(w in state.holds.authorizations for w in without),
+                 "invalid authorizations_without_history")
+        state.holds.without_history = set(without)
+        loaded_at = format_time(holds.utc_now())
+        for authorization in state.holds.authorizations.values():
+            state._settle_closed(authorization, loaded_at, lifecycle_recorded=True)
         for c in sorted(_list(source, "corrections", required=False),
                         key=lambda c: (c["payment_id"], c["revision"])):
             state._load_correction(c)
@@ -461,19 +470,26 @@ class State:
         state.expire_due()
         return state
 
-    def _derive_closed_at(self, authorization: dict) -> None:
-        """An export from stage 2 has no closed_at: a capture closed at its last capture, a
-        clock expiry at expires_at; a void's time was not kept, so it counts from creation."""
-        if authorization["status"] == "open":
-            authorization["closed_at"] = None
-        elif authorization["authorization_id"] in self.holds.clock_expired:
-            authorization["closed_at"] = authorization["expires_at"]
-        elif authorization["status"] == "captured" and authorization["payment_ids"]:
-            last = self.payments_by_id.get(authorization["payment_ids"][-1])
-            _require(last is not None, "unknown capture payment")
-            authorization["closed_at"] = last["created_at"]
+    def _settle_closed(self, authorization: dict, loaded_at: str,
+                       lifecycle_recorded: bool) -> None:
+        """closed_at for a closed authorisation that arrived by seed or import (S3-D8).
+
+        A capture closed at its latest capture, an expiry at expires_at, a void at the time
+        the source recorded, else at `loaded_at` (reset or import time). A seeded closed
+        authorisation holds nothing historically; an imported one holds over
+        [created_at, closed_at) only when the export gives both times."""
+        if authorization["status"] == "open" or authorization["closed_at"] is not None:
+            return
+        last = (self.payments_by_id.get(authorization["payment_ids"][-1])
+                if authorization["payment_ids"] else None)
+        if authorization["status"] == "captured" and last is not None:
+            authorization["closed_at"], known = last["created_at"], True
+        elif authorization["status"] == "expired":
+            authorization["closed_at"], known = authorization["expires_at"], True
         else:
-            authorization["closed_at"] = authorization["created_at"]
+            authorization["closed_at"], known = loaded_at, False
+        if not (lifecycle_recorded and known):
+            self.holds.without_history.add(authorization["authorization_id"])
 
     def _load_correction(self, correction: dict) -> None:
         payment_id = correction["payment_id"]

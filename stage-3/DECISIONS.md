@@ -113,9 +113,12 @@ Foreman decisions S3-D1 to S3-D7 are built as stated. The builder's own choices:
 - **B29. Holds in history.** A hold counts from created_at; captures reduce it at their
   payment's created_at; a void, final capture or clock expiry releases the rest at closed_at
   (clock expiry at expires_at, known once creation is known; the others known at closed_at).
-  In a view that does not yet know a close, an open hold expires at its deadline. Seeded
-  closed holds, and voids imported from stage-2 exports (whose time was not kept), close at
-  creation; stage-2 captures close at their last capture, clock expiries at expires_at.
+  In a view that does not yet know a close, an open hold expires at its deadline. A closed
+  authorisation that arrives by seed or import gets closed_at per S3-D8 (latest capture
+  payment, expires_at, or the recorded void time, else the reset or import time). Seeded
+  closed ones, and imported ones whose close time the export did not keep (stage-2 voids),
+  hold nothing in any historical view; the set is exported as
+  `authorizations_without_history`.
 - **B30. Statements.** `from` later than `to` is 422 `validation_failed` (the window
   arithmetic would not close). Ties on effective_at are ordered by payment id as a string.
   A first read stores its whole result under a random snapshot token; the token is exported

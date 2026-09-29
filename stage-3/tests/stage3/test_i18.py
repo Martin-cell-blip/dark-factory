@@ -3,7 +3,11 @@ import time
 
 import seed
 from client import expect
-from timefx import ago, ahead, at, me_at, signed_in
+from timefx import ago, ahead, at, me_at, now, signed_in
+
+
+def now_text():
+    return now().isoformat()
 
 
 def _hold(client, to_handle, amount):
@@ -84,3 +88,31 @@ def test_seeded_open_holds_count_from_reset(reset):
     assert _view(ann, as_of=ago(hours=4)) == (10000, 0, 10000)
     assert _find(ann, "a_seed")["closed_at"] is None
     assert _find(ann, "a_done")["closed_at"] is not None
+
+
+def test_closed_holds_that_arrive_by_seed(reset):
+    """S3-D8: capture -> latest capture payment, expired -> expires_at, voided -> reset time;
+    a seeded closed hold holds nothing at any instant."""
+    deadline = ago(hours=2)
+    before = now_text()
+    reset(seed.fixture(
+        payments=[{"id": "p_cap", "from_user_id": "u_ann", "to_user_id": "u_ben", "amount": 300,
+                   "created_at": ago(hours=4), "authorization_id": "a_cap"}],
+        authorizations=[
+            {"id": "a_cap", "from_user_id": "u_ann", "to_user_id": "u_ben", "amount": 500,
+             "status": "captured", "expires_at": ahead(hours=1), "created_at": ago(hours=5),
+             "captured_amount": 300, "payment_ids": ["p_cap"]},
+            {"id": "a_exp", "from_user_id": "u_ann", "to_user_id": "u_cat", "amount": 400,
+             "status": "expired", "expires_at": deadline, "created_at": ago(hours=6)},
+            {"id": "a_void", "from_user_id": "u_ann", "to_user_id": "u_cat", "amount": 700,
+             "status": "voided", "expires_at": ahead(hours=2), "created_at": ago(hours=6)}]))
+    after = now_text()
+    [ann] = signed_in("ann")
+    capture = next(p for p in expect(ann.get("/activity"), 200).json()["payments"]
+                   if p["payment_id"] == "p_cap")
+    assert _find(ann, "a_cap")["closed_at"] == capture["created_at"]
+    assert _find(ann, "a_exp")["closed_at"] == deadline
+    voided = _find(ann, "a_void")["closed_at"]
+    assert before <= voided <= after
+    for hours in (7, 5.5, 4.5, 3, 1):
+        assert _view(ann, as_of=ago(hours=hours))[1] == 0

@@ -106,6 +106,8 @@ def held_at(state, user_id: str, as_of: datetime, known: datetime) -> int:
     expiry is known as soon as creation is, so an open hold expires at its deadline."""
     held = 0
     for authorization in state.holds.by_payer(user_id):
+        if authorization["authorization_id"] in state.holds.without_history:
+            continue
         created = parse_time(authorization["created_at"])
         if created > as_of or created > known:
             continue
@@ -137,6 +139,8 @@ def never_negative(state, user_id: str, override: dict | None = None) -> bool:
             amount, effective = revision["amount"], parse_time(revision["effective_at"])
         events.append((effective, signed(payment, user_id, amount), 0))
     for authorization in state.holds.by_payer(user_id):
+        if authorization["authorization_id"] in state.holds.without_history:
+            continue
         created = parse_time(authorization["created_at"])
         events.append((created, 0, authorization["amount"]))
         captures = _capture_times(state, authorization)

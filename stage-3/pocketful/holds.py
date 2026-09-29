@@ -48,6 +48,9 @@ class Holds:
         self.ttl_seconds = ttl_seconds
         self.authorizations: dict[str, dict] = {}
         self.clock_expired: set[str] = set()
+        # Closed authorisations that arrived by seed or import without a known lifecycle:
+        # they hold nothing in any historical view (S3-D8).
+        self.without_history: set[str] = set()
         self._held: dict[str, int] = {}
         self._by_payer: dict[str, list[dict]] = {}
         self._deadlines: list[tuple[datetime, str]] = []

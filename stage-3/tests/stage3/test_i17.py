@@ -43,6 +43,11 @@ def test_a_stage_two_export(reset):
     assert holds[source["open_hold"]["authorization_id"]]["closed_at"] is None
     assert holds[source["captured"]["authorization_id"]]["closed_at"] == \
         source["capture"]["created_at"]
+    voided = holds[source["voided"]["authorization_id"]]
+    assert voided["status"] == "voided" and voided["closed_at"] is not None, (
+        "a stage-2 void time was not kept: it closes at import time (S3-D8)")
+    assert me_at(ann, as_of=source["voided"]["created_at"])["held"] == 2000, (
+        "an imported void without its time holds nothing historically")
     now = me_at(ann, as_of=ago(seconds=0))
     assert (now["total"], now["held"], now["available"]) == (9300, 2000, 7300)
     before_capture = me_at(ann, as_of=source["captured"]["created_at"])
