@@ -14,7 +14,8 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
 - D6. `note` length is counted in Unicode code points (auditor gap G7).
 - Amendment 1 (auditor coverage check): items 2, 13, 19, 24, 27, 29, 34 extended; items 41-43 added.
 - D7. The spec does not bound fixture size; item 34 is held to a 1000-user reset within 5 s (half the 10 s limit, as margin for judge hardware). Seeded passwords must still be stored with a password-hashing function.
-- D8. Request bodies are capped at 8 MiB (64 MiB x 50 in flight could exceed the 2 GiB cap).
+- D8 (amended in amendment 4). API routes cap bodies at 1 MiB; /_test/reset and /_test/import, which are not concurrent and may carry large exports, cap at 64 MiB. Larger bodies may be refused with 413 and the error envelope. Reason: an 8 MiB ignored array costs ~10x in memory, and 50 of them cannot meet 5 s within 2 vCPU/2 GiB.
+- Amendment 4: item 34 restated with D8 amended (auditor R4b on bf911c3).
 - Amendment 3: items 5 and 34 extended (auditor verdict on 704e4d9, R2 and R3).
 - Amendment 2: item 41 reads its second instance from POCKETFUL_URL_B.
 
@@ -86,7 +87,7 @@ Source: `pocketful/spec/stage-1.md` (kickoff package). Every item is graded; the
    check: `python -m pytest tests/acceptance/test_i32.py -q`
 33. POST /settlements -> 201 {settlement_id, committed_at, payments} with payments in input order; each member is an ordinary payment with settlement_id set, request_id null and created_at equal to committed_at; members follow ordinary feed visibility; replay -> 200 original complete response  
    check: `python -m pytest tests/acceptance/test_i33.py -q`
-34. Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s; reset of a 1000-user fixture answers within 5 s under the caps (decision D7); request bodies are bounded so that 50 in-flight maximal bodies stay well within 2 GiB (decision D8: a body above 8 MiB may be refused with 413 and the error envelope)  
+34. Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s; reset of a 1000-user fixture answers within 5 s under the caps (decision D7); request bodies are bounded so that 50 in-flight maximal bodies stay well within 2 GiB (decision D8, amended: a body above 1 MiB on an API route, or above 64 MiB on /_test/reset and /_test/import, may be refused with 413 and the error envelope); 50 concurrent maximal API bodies (1 MiB, ignored array field) are all answered within 5 s with no 5xx  
    check: `python -m pytest tests/acceptance/test_i34.py -q`
 35. The image builds, and runs on its own with -e PORT=<port> and a port mapping, with no outbound network at run time  
    check: `docker build -t pocketful-stage-1-ledger .`

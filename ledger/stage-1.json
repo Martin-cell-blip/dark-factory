@@ -176,7 +176,7 @@
     },
     {
       "id": 34,
-      "desc": "Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s; reset of a 1000-user fixture answers within 5 s under the caps (decision D7); request bodies are bounded so that 50 in-flight maximal bodies stay well within 2 GiB (decision D8: a body above 8 MiB may be refused with 413 and the error envelope)",
+      "desc": "Within caps (2 vCPU, 2 GiB, no outbound network): 50 concurrent requests all answered within 5 s with no 5xx; reset, export and import each answer within 10 s; reset of a 1000-user fixture answers within 5 s under the caps (decision D7); request bodies are bounded so that 50 in-flight maximal bodies stay well within 2 GiB (decision D8, amended: a body above 1 MiB on an API route, or above 64 MiB on /_test/reset and /_test/import, may be refused with 413 and the error envelope); 50 concurrent maximal API bodies (1 MiB, ignored array field) are all answered within 5 s with no 5xx",
       "check": "python -m pytest tests/acceptance/test_i34.py -q"
     },
     {
