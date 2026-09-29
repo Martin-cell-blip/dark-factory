@@ -40,6 +40,17 @@ docker run -d --rm --name pocketful-stage-2-b -p 8081:8081 -e PORT=8081 pocketfu
 export POCKETFUL_URL_B=http://localhost:8081
 ```
 
+`tests/stage2/test_i14.py` and `test_i27.py` upgrade from this team's released stage-1
+service: they build a state on it, export it and import it here. Build the stage-1 image
+from the repository's `stage-1/` folder (release commit 0976b03), run it on its own port and
+point `POCKETFUL_STAGE1_URL` at it (those tests fail without it):
+
+```sh
+(cd ../stage-1 && docker build -t pocketful-stage-1 .)
+docker run -d --rm --name pocketful-stage-1 -p 8082:8082 -e PORT=8082 pocketful-stage-1
+export POCKETFUL_STAGE1_URL=http://localhost:8082
+```
+
 ```sh
 python -m pytest tests -q                              # everything
 python -m pytest tests/stage2/test_i18.py -q           # one stage-2 ledger item
@@ -52,9 +63,8 @@ POCKETFUL_URL=http://localhost:9000 python -m pytest tests -q   # another addres
 | `tests/acceptance`, `tests/holdout` | Stage 1, carried forward (stage-2 ledger item 1) |
 | `tests/unit` | Shared rules and hold mechanics, in process (no service needed) |
 
-Every test resets its own fixture through `POST /_test/reset`.
-`tests/stage2/upgrade/stage1_export.json` is an unchanged export from this team's stage-1
-service; `make_stage1_export.py` beside it regenerates it from a running stage-1 service.
+Every test resets its own fixture through `POST /_test/reset` (on the stage-1 service too,
+for items 14 and 27).
 
 ## Without Docker
 

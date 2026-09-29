@@ -12,6 +12,7 @@ sys.path.insert(0, str(HERE.parent / "acceptance"))
 
 import seed  # noqa: E402
 from client import BASE_URL, expect, login, request  # noqa: E402
+from stage1 import lived_in_export  # noqa: E402
 
 
 def do_reset(fx: dict) -> None:
@@ -31,6 +32,12 @@ def world():
     clients = {u["handle"]: login(u["email"], u["password"]) for u in fx["users"]}
     return SimpleNamespace(fixture=fx, total=seed.total(fx), **clients,
                            everyone=list(clients.values()))
+
+
+@pytest.fixture
+def stage1():
+    """A lived-in export from the real stage-1 service at POCKETFUL_STAGE1_URL (fails if unset)."""
+    return lived_in_export()
 
 
 # ---- browser ------------------------------------------------------------------------

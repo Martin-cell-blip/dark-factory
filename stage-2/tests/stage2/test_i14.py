@@ -1,40 +1,36 @@
-"""Item 14: stage-1 exports import unchanged; stage-2 export/import round-trips holds."""
-import json
-from pathlib import Path
-
+"""Item 14: an export from the real stage-1 service (POCKETFUL_STAGE1_URL) imports unchanged;
+stage-2 export/import round-trips holds."""
 import seed
 from client import Client, expect, new_key, request
 from holdfx import authorize, capture, me, signed_in
 
-STAGE1 = json.loads((Path(__file__).resolve().parent / "upgrade" / "stage1_export.json")
-                    .read_text(encoding="utf-8"))
 
 
 def _import(document):
     return expect(request("POST", "/_test/import", document, timeout=15), 204)
 
 
-def test_a_stage_one_export_imports_unchanged(reset):
+def test_a_stage_one_export_imports_unchanged(reset, stage1):
     reset(seed.fixture(users=[seed.user("zed", 5)]))
-    _import(STAGE1["export"])
-    ann, ben = Client(STAGE1["tokens"]["ann"]), Client(STAGE1["tokens"]["ben"])
+    _import(stage1["export"])
+    ann, ben = Client(stage1["tokens"]["ann"]), Client(stage1["tokens"]["ben"])
     for name, client in (("ann", ann), ("ben", ben)):
         body = me(client)
-        assert body["total"] == body["balance"] == body["available"] == STAGE1["balances"][name]
+        assert body["total"] == body["balance"] == body["available"] == stage1["balances"][name]
         assert body["held"] == 0
     expect(request("POST", "/auth/login", {"email": "cat@pocket.test",
                                            "password": seed.PASSWORD}), 200)
-    paid = STAGE1["payment"]
+    paid = stage1["payment"]
     replay = expect(ann.post("/payments", paid["body"], key=paid["key"]), 200).json()
     assert replay == paid["response"]
-    assert me(ann)["total"] == STAGE1["balances"]["ann"]
+    assert me(ann)["total"] == stage1["balances"]["ann"]
     feed = {p["payment_id"]: p for p in expect(ben.get("/activity"), 200).json()["payments"]}
     assert paid["response"]["payment_id"] in feed
     assert all(p["authorization_id"] is None for p in feed.values())
     assert expect(ann.get("/authorizations"), 200).json()["authorizations"] == []
-    rid = STAGE1["pending_request_id"]
+    rid = stage1["pending_request_id"]
     expect(ann.write(f"/requests/{rid}/pay", {}), 201)
-    failed = STAGE1["failed"]
+    failed = stage1["failed"]
     expect(ben.post("/payments", {**failed["body"], "amount": 1}, key=failed["key"]), 201)
 
 
@@ -77,11 +73,11 @@ def test_clock_expiry_survives_a_round_trip(reset):
     assert me(ann)["held"] == 0
 
 
-def test_stage_one_replays_are_returned_as_first_stored(reset):
+def test_stage_one_replays_are_returned_as_first_stored(reset, stage1):
     reset(seed.fixture())
-    _import(STAGE1["export"])
-    ann = Client(STAGE1["tokens"]["ann"])
-    paid = STAGE1["payment"]
+    _import(stage1["export"])
+    ann = Client(stage1["tokens"]["ann"])
+    paid = stage1["payment"]
     replay = expect(ann.post("/payments", paid["body"], key=paid["key"]), 200)
     assert replay.json() == paid["response"]
     assert "authorization_id" not in replay.json(), "S2-D8: stored responses are not rewritten"
