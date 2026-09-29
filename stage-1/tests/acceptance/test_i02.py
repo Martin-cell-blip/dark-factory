@@ -54,3 +54,23 @@ def test_settlement_operators_default_to_none(reset):
     ann = login("ann@pocket.test", seed.PASSWORD)
     body = {"transfers": [{"from_handle": "ann", "to_handle": "ben", "amount": 1}]}
     expect(ann.write("/settlements", body), 403, "forbidden")
+
+
+def test_seeded_ids_verbatim_and_statuses_honoured(reset):
+    fx = seed.fixture(
+        payments=[{"id": "pay-Seed.1", "from_user_id": "u_ann", "to_user_id": "u_cat",
+                   "amount": 5}],
+        requests=[{"id": f"req-{status}", "requester_id": "u_ben", "payer_id": "u_ann",
+                   "amount": 10, "status": status}
+                  for status in ("pending", "paid", "declined", "cancelled")])
+    reset(fx)
+    ann = login("ann@pocket.test", seed.PASSWORD)
+    assert ann.get("/me").json()["user_id"] == "u_ann"
+    [payment] = ann.get("/activity").json()["payments"]
+    assert payment["payment_id"] == "pay-Seed.1" and payment["settlement_id"] is None
+    listed = {r["request_id"]: r["status"] for r in ann.get("/requests").json()["requests"]}
+    assert listed == {f"req-{s}": s for s in ("pending", "paid", "declined", "cancelled")}
+    for status in ("paid", "declined", "cancelled"):
+        expect(ann.write(f"/requests/req-{status}/pay", {}), 409, "request_not_pending")
+    expect(ann.post("/requests/req-paid/decline"), 409, "request_not_pending")
+    expect(ann.post("/requests/req-declined/decline"), 200)

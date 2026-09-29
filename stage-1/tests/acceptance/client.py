@@ -28,8 +28,8 @@ def new_key() -> str:
 
 def request(method: str, path: str, json_body=_NO_BODY, *, raw: bytes | None = None,
             token: str | None = None, key: str | None = None, headers: dict | None = None,
-            timeout: float = 30) -> Response:
-    url = urlsplit(BASE_URL)
+            timeout: float = 30, base: str | None = None) -> Response:
+    url = urlsplit(base or BASE_URL)
     conn = http.client.HTTPConnection(url.hostname, url.port or 80, timeout=timeout)
     sent = dict(headers or {})
     body = raw

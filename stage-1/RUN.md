@@ -25,6 +25,14 @@ The acceptance tests are black-box HTTP checks against the running container, on
 ledger item (`tests/acceptance/test_iNN.py`); `tests/unit` checks the shared rules in
 process. They need Python 3.10+ and pytest on the host (`pip install pytest`).
 
+`test_i41.py` moves an export into a second, fresh container on a different port. Start it
+next to the first one and point `POCKETFUL_URL_B` at it (the test fails without it):
+
+```sh
+docker run -d --rm --name pocketful-stage-1-b -p 8081:8081 -e PORT=8081 pocketful-stage-1
+export POCKETFUL_URL_B=http://localhost:8081
+```
+
 ```sh
 python -m pytest tests -q                              # everything
 python -m pytest tests/acceptance/test_i15.py -q       # one ledger item

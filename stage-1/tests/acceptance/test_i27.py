@@ -1,5 +1,6 @@
 """Item 27: GET /activity and the feed contract."""
-from client import expect
+import seed
+from client import expect, login
 
 
 def _ids(client, query=""):
@@ -42,3 +43,19 @@ def test_newest_first_and_paging(world):
     assert page["has_more"] is False and len(page["payments"]) == 2
     stamps = [p["created_at"] for p in world.cat.get("/activity").json()["payments"]]
     assert stamps == sorted(stamps, reverse=True)
+
+
+def test_every_item_carries_settlement_id(reset):
+    fx = seed.fixture(payments=[{"id": "p_old", "from_user_id": "u_ben", "to_user_id": "u_cat",
+                                 "amount": 9}], settlement_operator_ids=["u_ann"])
+    reset(fx)
+    ann = login("ann@pocket.test", seed.PASSWORD)
+    expect(ann.write("/payments", {"to_handle": "ben", "amount": 1}), 201)
+    settled = expect(ann.write("/settlements", {"transfers": [
+        {"from_handle": "ann", "to_handle": "cat", "amount": 2}]}), 201).json()
+    items = ann.get("/activity").json()["payments"]
+    assert len(items) == 3 and all("settlement_id" in p for p in items)
+    by_id = {p["payment_id"]: p["settlement_id"] for p in items}
+    assert by_id["p_old"] is None
+    assert by_id[settled["payments"][0]["payment_id"]] == settled["settlement_id"]
+    assert sorted(v is None for v in by_id.values()) == [False, True, True]

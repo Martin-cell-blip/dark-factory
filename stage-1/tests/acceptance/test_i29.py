@@ -114,3 +114,14 @@ def test_reset_clears_imported_state(source, reset):
     reset(seed.fixture())
     expect(source["ann"].get("/me"), 401)
     expect(request("GET", "/me", token=source["signup"]["token"]), 401)
+
+
+def test_payments_after_import_carry_settlement_id(source):
+    document = _export()
+    expect(_import(document), 204)
+    items = source["ann"].get("/activity").json()["payments"]
+    assert all("settlement_id" in p for p in items)
+    members = [p for p in items if p["settlement_id"] is not None]
+    assert [p["payment_id"] for p in members] == \
+        [p["payment_id"] for p in source["settlement"]["payments"]]
+    assert all(p["settlement_id"] == source["settlement"]["settlement_id"] for p in members)
