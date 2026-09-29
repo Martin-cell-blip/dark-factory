@@ -6,6 +6,7 @@ Wrong JSON type -> 400 malformed_request, except amount, note and visibility whi
 import math
 import re
 
+from .clock import parse_instant
 from .errors import malformed, validation
 
 MAX_AMOUNT = 1_000_000_000
@@ -143,3 +144,22 @@ def query_choice(query: dict, name: str, choices: tuple) -> str | None:
     if value not in choices:
         raise validation(f"{name} must be one of {', '.join(choices)}")
     return value
+
+
+def query_instant(query: dict, name: str):
+    """(text, datetime) for an optional RFC 3339 instant parameter, or (None, None).
+    A '+' that arrived unencoded (decoded as a space) is read as the '+' it was."""
+    if name not in query:
+        return None, None
+    text = query[name].replace(" ", "+")
+    moment = parse_instant(text)
+    if moment is None:
+        raise validation(f"{name} must be an RFC 3339 instant with an offset")
+    return text, moment
+
+
+def count_amount(value) -> int:
+    """A corrected amount: an integral number from 0 to 1000000000 (0 reverses a payment)."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0:
+        return 0
+    return amount_value(value)

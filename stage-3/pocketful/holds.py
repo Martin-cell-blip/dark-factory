@@ -1,4 +1,4 @@
-"""Authorisations and the holds they place on the payer's wallet (stage 2).
+"""Authorisations and the holds they place on the payer's wallet (stages 2 and 3).
 
 A hold reserves money without moving it: `held` per user is the sum of the remaining
 amounts of that user's open authorisations. Expiry follows the clock: every read or write
@@ -25,8 +25,9 @@ def expires_at(created_at: str, ttl_seconds: int) -> str:
 def record(authorization_id: str, payer: dict, receiver: dict, amount: int, currency: str,
            note: str, visibility: str, status: str, expires: str, created_at: str,
            captured_amount: int = 0, remaining_amount: int | None = None,
-           payment_ids: list | None = None) -> dict:
-    """An authorisation exactly as the API returns it."""
+           payment_ids: list | None = None, closed_at: str | None = None) -> dict:
+    """An authorisation exactly as the API returns it. closed_at is null while open and
+    the time of the capture, void or expiry that closed it (stage 3)."""
     payment_ids = list(payment_ids or [])
     if remaining_amount is None:
         remaining_amount = amount - captured_amount if status == "open" else 0
@@ -38,7 +39,7 @@ def record(authorization_id: str, payer: dict, receiver: dict, amount: int, curr
         "remaining_amount": remaining_amount, "currency": currency,
         "note": note, "visibility": visibility, "status": status,
         "expires_at": expires, "payment_id": payment_ids[-1] if payment_ids else None,
-        "payment_ids": payment_ids, "created_at": created_at,
+        "payment_ids": payment_ids, "created_at": created_at, "closed_at": closed_at,
     }
 
 
@@ -48,14 +49,19 @@ class Holds:
         self.authorizations: dict[str, dict] = {}
         self.clock_expired: set[str] = set()
         self._held: dict[str, int] = {}
+        self._by_payer: dict[str, list[dict]] = {}
         self._deadlines: list[tuple[datetime, str]] = []
 
     def held_by(self, user_id: str) -> int:
         return self._held.get(user_id, 0)
 
+    def by_payer(self, user_id: str) -> list[dict]:
+        return self._by_payer.get(user_id, [])
+
     def add(self, authorization: dict) -> None:
         """Track an authorisation; an open one holds its remaining amount until it closes."""
         self.authorizations[authorization["authorization_id"]] = authorization
+        self._by_payer.setdefault(authorization["from_user_id"], []).append(authorization)
         if authorization["status"] == "open":
             payer = authorization["from_user_id"]
             self._held[payer] = self.held_by(payer) + authorization["remaining_amount"]
@@ -67,22 +73,23 @@ class Holds:
             _, authorization_id = heapq.heappop(self._deadlines)
             authorization = self.authorizations.get(authorization_id)
             if authorization is not None and authorization["status"] == "open":
-                self.close(authorization, "expired")
+                self.close(authorization, "expired", authorization["expires_at"])
                 self.clock_expired.add(authorization_id)
 
-    def capture(self, authorization: dict, amount: int, closes: bool, payment_id: str) -> None:
+    def capture(self, authorization: dict, amount: int, closes: bool, payment: dict) -> None:
         """Record a capture whose money has moved; a closing capture releases the rest."""
         authorization["captured_amount"] += amount
-        authorization["payment_ids"].append(payment_id)
-        authorization["payment_id"] = payment_id
+        authorization["payment_ids"].append(payment["payment_id"])
+        authorization["payment_id"] = payment["payment_id"]
         self._release(authorization, amount)
         if closes:
-            self.close(authorization, "captured")
+            self.close(authorization, "captured", payment["created_at"])
 
-    def close(self, authorization: dict, status: str) -> None:
-        """Void, expiry or a closing capture: release what is still held."""
+    def close(self, authorization: dict, status: str, at: str) -> None:
+        """Void, expiry or a closing capture at `at`: release what is still held."""
         self._release(authorization, authorization["remaining_amount"])
         authorization["status"] = status
+        authorization["closed_at"] = at
 
     def _release(self, authorization: dict, amount: int) -> None:
         payer = authorization["from_user_id"]

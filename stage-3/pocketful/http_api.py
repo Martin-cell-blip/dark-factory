@@ -68,7 +68,7 @@ def _routes(service: Service):
         return 200, service.login(req.object())
 
     def me(req):
-        return 200, service.me(req.token(service))
+        return 200, service.me_at(req.token(service), req.query)
 
     def payments(req):
         token = req.token(service)
@@ -128,6 +128,16 @@ def _routes(service: Service):
         req.optional_object()
         return 200, service.void_authorization(token, req.params[0])
 
+    def statement(req):
+        return 200, service.statement(req.token(service), req.query)
+
+    def correction(req):
+        token = req.token(service)
+        return service.correct_payment(token, req.key, req.path, req.params[0], req.object())
+
+    def revisions(req):
+        return 200, service.list_revisions(req.token(service), req.params[0])
+
     def screen(req):
         return 200, web.page()
 
@@ -155,6 +165,9 @@ def _routes(service: Service):
         ("GET", "/authorizations", authorizations_list),
         ("POST", "/authorizations/([^/]+)/capture", authorization_capture),
         ("POST", "/authorizations/([^/]+)/void", authorization_void),
+        ("GET", "/statement", statement),
+        ("POST", "/payments/([^/]+)/corrections", correction),
+        ("GET", "/payments/([^/]+)/revisions", revisions),
         ("GET", "/(?:split|signup|login)?", screen),
         ("GET", "/assets/([A-Za-z0-9_.-]+)", asset),
     ]

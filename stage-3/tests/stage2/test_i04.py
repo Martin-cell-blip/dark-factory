@@ -5,7 +5,8 @@ from client import expect, new_key
 
 SHAPE = ["authorization_id", "from_user_id", "from_handle", "to_user_id", "to_handle",
          "amount", "captured_amount", "remaining_amount", "currency", "note", "visibility",
-         "status", "expires_at", "payment_id", "payment_ids", "created_at"]
+         "status", "expires_at", "payment_id", "payment_ids", "created_at",
+         "closed_at"]  # closed_at from stage 3
 
 
 def test_created_authorization(world):
@@ -19,7 +20,7 @@ def test_created_authorization(world):
     assert body["remaining_amount"] == 2000 and body["currency"] == "EUR"
     assert body["note"] == "deposit" and body["visibility"] == "private"
     assert body["status"] == "open" and body["payment_id"] is None
-    assert body["payment_ids"] == []
+    assert body["payment_ids"] == [] and body["closed_at"] is None
     assert isinstance(body["authorization_id"], str) and len(body["authorization_id"]) <= 64
     created = datetime.fromisoformat(body["created_at"])
     assert created.tzinfo is not None

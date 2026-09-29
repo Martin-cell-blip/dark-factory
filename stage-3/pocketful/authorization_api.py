@@ -65,7 +65,7 @@ class AuthorizationEndpoints:
                   "note": authorization["note"], "visibility": authorization["visibility"],
                   "authorization_id": authorization_id}],
                 state.clock.now(), held_release={payer["id"]: remaining if closes else amount})
-            state.holds.capture(authorization, amount, closes, payment["payment_id"])
+            state.holds.capture(authorization, amount, closes, payment)
             return payment
         return self._idempotent(token, key, path, body, action)
 
@@ -82,7 +82,7 @@ class AuthorizationEndpoints:
                 if authorization["status"] != "open":
                     raise ApiError(409, "authorization_not_open",
                                    f"the authorization is {authorization['status']}")
-                state.holds.close(authorization, "voided")
+                state.holds.close(authorization, "voided", state.clock.now())
             return _view(authorization)
 
     def list_authorizations(self, token, query: dict) -> dict:

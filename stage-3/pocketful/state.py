@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from . import fields, holds, jsonio
 from .clock import Clock, parse_time
 from .errors import ApiError, insufficient_funds, validation
+from .history import Revisions
 from .holds import Holds
 from .passwords import hash_password, is_hash
 
@@ -82,6 +83,9 @@ class State:
         self.operator_ids: list[str] = []
         self.idempotency: dict[tuple, tuple[str, dict]] = {}
         self.holds = Holds()
+        self.revisions = Revisions()
+        self.user_payments: dict[str, list[dict]] = {}
+        self.snapshots: dict[str, dict] = {}
         self.clock = Clock()
 
     # ---- identities -------------------------------------------------------------------
@@ -128,21 +132,14 @@ class State:
 
     # ---- money --------------------------------------------------------------------------
 
-    def commit_payments(self, transfers: list[dict], created_at: str,
-                        settlement_id=None, held_release: dict | None = None) -> list[dict]:
-        """Move money for a batch of transfers as one step, or raise and change nothing.
+    def move(self, deltas: dict[str, int], held_release: dict | None = None) -> None:
+        """Apply balance changes as one step, or raise and change nothing.
 
-        Each transfer is {from, to, amount, note, visibility, request_id, authorization_id}.
-        The batch commits only when every wallet still covers what it holds afterwards
-        (`held_release` is the hold a capture gives up in the same step). This is the one
-        guard on every money path, so held funds never pay for anything but their capture.
-        """
+        Every wallet must still cover what it holds afterwards (`held_release` is the hold a
+        capture gives up in the same step). This is the one guard on every money path
+        (payments, captures, settlements, corrections), so held funds never pay for anything
+        but their own capture."""
         held_release = held_release or {}
-        deltas: dict[str, int] = {}
-        for t in transfers:
-            _require(t["from"]["id"] != t["to"]["id"], "a wallet cannot pay itself")
-            deltas[t["from"]["id"]] = deltas.get(t["from"]["id"], 0) - t["amount"]
-            deltas[t["to"]["id"]] = deltas.get(t["to"]["id"], 0) + t["amount"]
         for user_id, delta in deltas.items():
             after = self.users[user_id]["balance"] + delta
             if after < self.holds.held_by(user_id) - held_release.get(user_id, 0):
@@ -151,6 +148,18 @@ class State:
                 raise validation("the payment would take a balance out of range")
         for user_id, delta in deltas.items():
             self.users[user_id]["balance"] += delta
+
+    def commit_payments(self, transfers: list[dict], created_at: str,
+                        settlement_id=None, held_release: dict | None = None) -> list[dict]:
+        """Record a batch of transfers as payments whose money moves in one step.
+
+        Each transfer is {from, to, amount, note, visibility, request_id, authorization_id}."""
+        deltas: dict[str, int] = {}
+        for t in transfers:
+            _require(t["from"]["id"] != t["to"]["id"], "a wallet cannot pay itself")
+            deltas[t["from"]["id"]] = deltas.get(t["from"]["id"], 0) - t["amount"]
+            deltas[t["to"]["id"]] = deltas.get(t["to"]["id"], 0) + t["amount"]
+        self.move(deltas, held_release)
         payments = []
         for t in transfers:
             payment = {
@@ -170,6 +179,9 @@ class State:
         _require(payment["payment_id"] not in self.payments_by_id, "duplicate payment id")
         self.payments.append(payment)
         self.payments_by_id[payment["payment_id"]] = payment
+        self.revisions.start(payment)
+        for user_id in (payment["from_user_id"], payment["to_user_id"]):
+            self.user_payments.setdefault(user_id, []).append(payment)
 
     def new_request(self, requester: dict, payer: dict, amount: int, note: str,
                     created_at: str) -> dict:
@@ -251,6 +263,9 @@ class State:
         stamps: list = []
         for record in payments + requests + authorizations:
             state._stamp(record, "created_at", stamps)
+        now = holds.utc_now()
+        _require(all(parse_time(s) <= now for s in stamps[:len(payments)] if s is not None),
+                 "a seeded payment cannot be created in the future")
         stamps = [s if s is not None else state.clock.now() for s in stamps]
         for record, stamp in zip(payments, stamps):
             state._add_payment(state._seeded_payment(record, stamp))
@@ -330,9 +345,11 @@ class State:
         payment_ids = record.get("payment_ids", [])
         _require(isinstance(payment_ids, list) and all(fields.is_id(p) for p in payment_ids),
                  "invalid payment_ids")
+        closed_at = None if status == "open" else record.get("closed_at") or created_at
+        _require(closed_at is None or parse_time(closed_at) is not None, "invalid closed_at")
         return holds.record(record["id"], payer, receiver, amount, self.currency,
                             _note(record.get("note", "")), visibility, status, expires,
-                            created_at, captured, remaining, payment_ids)
+                            created_at, captured, remaining, payment_ids, closed_at)
 
     # ---- export and import (section 10) -------------------------------------------------
 
@@ -355,6 +372,9 @@ class State:
                 "authorization_ttl_seconds": self.holds.ttl_seconds,
                 "authorizations": list(self.holds.authorizations.values()),
                 "clock_expired_authorization_ids": sorted(self.holds.clock_expired),
+                "corrections": self.revisions.corrections(),
+                "snapshots": [{"token": token, **snapshot}
+                              for token, snapshot in self.snapshots.items()],
                 "idempotency": [
                     {"user_id": slot[0], "method": slot[1], "path": slot[2], "key": slot[3],
                      "body": body, "response": response}
@@ -423,6 +443,16 @@ class State:
                  and all(e in state.holds.authorizations for e in expired),
                  "invalid clock_expired_authorization_ids")
         state.holds.clock_expired = set(expired)
+        for a in _list(source, "authorizations", required=False):
+            if "closed_at" not in a:
+                state._derive_closed_at(state.holds.authorizations[a["authorization_id"]])
+        for c in sorted(_list(source, "corrections", required=False),
+                        key=lambda c: (c["payment_id"], c["revision"])):
+            state._load_correction(c)
+        for s in _list(source, "snapshots", required=False):
+            _require(isinstance(s["token"], str) and s["user_id"] in state.users
+                     and isinstance(s["result"], dict), "invalid snapshot")
+            state.snapshots[s["token"]] = {"user_id": s["user_id"], "result": s["result"]}
         state._operators(source)
         clock = source.get("clock")
         if clock is not None:
@@ -430,6 +460,36 @@ class State:
         state._order_by_time()
         state.expire_due()
         return state
+
+    def _derive_closed_at(self, authorization: dict) -> None:
+        """An export from stage 2 has no closed_at: a capture closed at its last capture, a
+        clock expiry at expires_at; a void's time was not kept, so it counts from creation."""
+        if authorization["status"] == "open":
+            authorization["closed_at"] = None
+        elif authorization["authorization_id"] in self.holds.clock_expired:
+            authorization["closed_at"] = authorization["expires_at"]
+        elif authorization["status"] == "captured" and authorization["payment_ids"]:
+            last = self.payments_by_id.get(authorization["payment_ids"][-1])
+            _require(last is not None, "unknown capture payment")
+            authorization["closed_at"] = last["created_at"]
+        else:
+            authorization["closed_at"] = authorization["created_at"]
+
+    def _load_correction(self, correction: dict) -> None:
+        payment_id = correction["payment_id"]
+        _require(payment_id in self.payments_by_id, "correction of an unknown payment")
+        latest = self.revisions.latest(payment_id)
+        _require(correction["revision"] == latest["revision"] + 1, "corrections out of order")
+        _require(_is_count(correction["amount"]) and correction["amount"] <= fields.MAX_AMOUNT,
+                 "invalid correction amount")
+        _require(isinstance(correction["reason"], str), "invalid correction reason")
+        for name in ("effective_at", "recorded_at"):
+            _require(parse_time(correction[name]) is not None, f"invalid correction {name}")
+        _require(parse_time(correction["recorded_at"]) > parse_time(latest["recorded_at"]),
+                 "correction recorded times must increase")
+        self.clock.observe(correction["recorded_at"])
+        self.revisions.append(payment_id, correction["amount"], correction["effective_at"],
+                              correction["recorded_at"], correction["reason"])
 
     def _exported_time(self, stamp) -> str:
         _require(parse_time(stamp) is not None, "timestamps must be RFC 3339 with an offset")

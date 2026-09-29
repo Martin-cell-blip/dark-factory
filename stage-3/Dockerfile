@@ -1,4 +1,4 @@
-# Pocketful stage 2: a Python standard-library HTTP service that also serves the browser
+# Pocketful stage 3: a Python standard-library HTTP service that also serves the browser
 # app from pocketful/web. No packages are installed, so nothing is fetched at run time.
 FROM python:3.12-slim
 

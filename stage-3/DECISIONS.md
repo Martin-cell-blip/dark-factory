@@ -93,3 +93,35 @@ Foreman decisions S2-D1 to S2-D6 are built as stated. The builder's own choices:
 - **B25. Dates** are shown in English (`en-GB`) whatever the browser locale;
   `authorization-expires-{id}` shows the exact RFC 3339 `expires_at` beside a
   human "Expires in …" label.
+
+## Stage 3
+
+Foreman decisions S3-D1 to S3-D7 are built as stated. The builder's own choices:
+
+- **B26. Revisions and views.** Every payment keeps its revisions (`pocketful/history.py`);
+  revision 1 is the payment as made. A view at (as_of T, known_at K) selects, per payment,
+  the latest revision recorded at or before K and counts it if its effective_at is at or
+  before T (a statement window counts effective_at in [from, to)). Omitted K means every
+  revision; omitted T means the instant the read begins (never before the last recorded
+  event).
+- **B27. Opening balances** are derived, not stored: current balance minus the net of every
+  payment's latest revision. A correction moves both by the same amount, so opening balances
+  never change, and exports from stages 1 and 2 need nothing extra.
+- **B28. Historical overdraft.** A correction is checked for both parties over every
+  effective and hold-event boundary under the latest revisions with the correction applied,
+  summing everything at one instant before checking total >= 0 and total - held >= 0.
+- **B29. Holds in history.** A hold counts from created_at; captures reduce it at their
+  payment's created_at; a void, final capture or clock expiry releases the rest at closed_at
+  (clock expiry at expires_at, known once creation is known; the others known at closed_at).
+  In a view that does not yet know a close, an open hold expires at its deadline. Seeded
+  closed holds, and voids imported from stage-2 exports (whose time was not kept), close at
+  creation; stage-2 captures close at their last capture, clock expiries at expires_at.
+- **B30. Statements.** `from` later than `to` is 422 `validation_failed` (the window
+  arithmetic would not close). Ties on effective_at are ordered by payment id as a string.
+  A first read stores its whole result under a random snapshot token; the token is exported
+  with the state (S3-D5) and cleared by reset.
+- **B31. Instants in queries** must be RFC 3339 with seconds and Z or a numeric offset. A '+'
+  that arrives unencoded in a query string (and so decodes as a space) is read as '+'.
+- **B32. Correction fields.** `expected_revision` must be a JSON number (other types 400);
+  `amount` follows the stage-1 amount rule but allows 0; effective_at must not be later than
+  the wall-clock now at validation; `reason` counts code points.
