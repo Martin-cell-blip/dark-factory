@@ -16,7 +16,7 @@ def test_revision_one_for_seeded_and_new_payments(reset):
     ann, ben = signed_in("ann", "ben")
     [given] = _revisions(ann, "p_given")
     assert given == {"payment_id": "p_given", "revision": 1, "amount": 500, "effective_at": STAMP,
-                     "recorded_at": STAMP, "reason": ""}
+                     "recorded_at": STAMP, "reason": "", "correction_batch_id": None}
     feed = {p["payment_id"]: p for p in expect(ann.get("/activity"), 200).json()["payments"]}
     [at_reset] = _revisions(ben, "p_reset")
     assert at_reset["effective_at"] == at_reset["recorded_at"] == feed["p_reset"]["created_at"]

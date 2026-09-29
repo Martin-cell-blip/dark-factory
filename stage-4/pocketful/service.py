@@ -10,10 +10,12 @@ from .errors import (ApiError, forbidden, not_found, request_not_pending,
                      unauthenticated, validation)
 from .jsonio import fingerprint
 from .authorization_api import AuthorizationEndpoints
+from .batch_api import CorrectionBatchEndpoints
 from .history_api import HistoryEndpoints
 from .money import equal_split
 from .paging import page, page_params
 from .passwords import hash_password, verify_password
+from .refund_api import RefundEndpoints
 from .state import State
 
 MAX_KEY = 255
@@ -35,7 +37,8 @@ def _public_user(user: dict, token: str) -> dict:
     return {"user_id": user["id"], "display_name": user["display_name"], "token": token}
 
 
-class Service(AuthorizationEndpoints, HistoryEndpoints):
+class Service(AuthorizationEndpoints, HistoryEndpoints, RefundEndpoints,
+              CorrectionBatchEndpoints):
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._state = State.empty()

@@ -135,6 +135,14 @@ def _routes(service: Service):
         token = req.token(service)
         return service.correct_payment(token, req.key, req.path, req.params[0], req.object())
 
+    def refund(req):
+        token = req.token(service)
+        return service.refund_payment(token, req.key, req.path, req.params[0], req.object())
+
+    def correction_batch(req):
+        token = req.token(service)
+        return service.correct_batch(token, req.key, req.path, req.object())
+
     def revisions(req):
         return 200, service.list_revisions(req.token(service), req.params[0])
 
@@ -168,6 +176,8 @@ def _routes(service: Service):
         ("GET", "/statement", statement),
         ("POST", "/payments/([^/]+)/corrections", correction),
         ("GET", "/payments/([^/]+)/revisions", revisions),
+        ("POST", "/payments/([^/]+)/refunds", refund),
+        ("POST", "/correction-batches", correction_batch),
         ("GET", "/(?:split|signup|login)?", screen),
         ("GET", "/assets/([A-Za-z0-9_.-]+)", asset),
     ]

@@ -13,7 +13,7 @@ def test_pay_default_public_and_request_becomes_paid(world):
     assert set(payment) == {"payment_id", "from_user_id", "from_handle", "to_user_id",
                             "to_handle", "amount", "currency", "note", "visibility",
                             "request_id", "settlement_id", "authorization_id",
-                            "created_at"}
+                            "refund_of", "created_at"}
     assert payment["from_handle"] == "ann" and payment["to_handle"] == "ben"
     assert payment["amount"] == 1200 and payment["note"] == "taxi"
     assert payment["visibility"] == "public" and payment["request_id"] == rq["request_id"]

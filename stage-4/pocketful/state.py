@@ -85,6 +85,8 @@ class State:
         self.holds = Holds()
         self.revisions = Revisions()
         self.user_payments: dict[str, list[dict]] = {}
+        self.refunds_of: dict[str, list[dict]] = {}
+        self.settlement_members: dict[str, list[str]] = {}
         self.snapshots: dict[str, dict] = {}
         self.clock = Clock()
 
@@ -169,7 +171,7 @@ class State:
                 "amount": t["amount"], "currency": self.currency, "note": t["note"],
                 "visibility": t["visibility"], "request_id": t.get("request_id"),
                 "settlement_id": settlement_id, "authorization_id": t.get("authorization_id"),
-                "created_at": created_at,
+                "refund_of": t.get("refund_of"), "created_at": created_at,
             }
             self._add_payment(payment)
             payments.append(payment)
@@ -182,6 +184,15 @@ class State:
         self.revisions.start(payment)
         for user_id in (payment["from_user_id"], payment["to_user_id"]):
             self.user_payments.setdefault(user_id, []).append(payment)
+        if payment["refund_of"] is not None:
+            self.refunds_of.setdefault(payment["refund_of"], []).append(payment)
+        if payment["settlement_id"] is not None:
+            self.settlement_members.setdefault(payment["settlement_id"], []).append(
+                payment["payment_id"])
+
+    def refunded(self, payment_id: str) -> int:
+        """What has been refunded of a payment so far."""
+        return sum(refund["amount"] for refund in self.refunds_of.get(payment_id, []))
 
     def new_request(self, requester: dict, payer: dict, amount: int, note: str,
                     created_at: str) -> dict:
@@ -306,6 +317,7 @@ class State:
             "request_id": _optional_id(record, "request_id"),
             "settlement_id": _optional_id(record, "settlement_id"),
             "authorization_id": _optional_id(record, "authorization_id"),
+            "refund_of": _optional_id(record, "refund_of"),
             "created_at": created_at,
         }
 
@@ -504,8 +516,10 @@ class State:
         _require(parse_time(correction["recorded_at"]) > parse_time(latest["recorded_at"]),
                  "correction recorded times must increase")
         self.clock.observe(correction["recorded_at"])
+        batch_id = correction.get("correction_batch_id")
+        _require(batch_id is None or fields.is_id(batch_id), "invalid correction_batch_id")
         self.revisions.append(payment_id, correction["amount"], correction["effective_at"],
-                              correction["recorded_at"], correction["reason"])
+                              correction["recorded_at"], correction["reason"], batch_id)
 
     def _exported_time(self, stamp) -> str:
         _require(parse_time(stamp) is not None, "timestamps must be RFC 3339 with an offset")

@@ -4,7 +4,7 @@ from holdfx import authorize, capture, me
 
 PAYMENT = {"payment_id", "from_user_id", "from_handle", "to_user_id", "to_handle", "amount",
            "currency", "note", "visibility", "request_id", "settlement_id",
-           "authorization_id", "created_at"}
+           "authorization_id", "refund_of", "created_at"}  # refund_of from stage 4
 
 
 def test_default_capture_takes_the_remaining_amount(world):

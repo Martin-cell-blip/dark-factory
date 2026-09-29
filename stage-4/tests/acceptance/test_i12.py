@@ -8,13 +8,14 @@ def test_payment_shape(world):
                   201).json()
     assert set(body) == {"payment_id", "from_user_id", "from_handle", "to_user_id",
                          "to_handle", "amount", "currency", "note", "visibility",
-                         "request_id", "settlement_id", "authorization_id", "created_at"}
+                         "request_id", "settlement_id", "authorization_id", "refund_of",
+                         "created_at"}
     assert body["from_user_id"] == "u_ann" and body["from_handle"] == "ann"
     assert body["to_user_id"] == "u_ben" and body["to_handle"] == "ben"
     assert body["amount"] == 1500 and body["currency"] == "EUR"
     assert body["note"] == "dinner" and body["visibility"] == "private"
     assert body["request_id"] is None and body["settlement_id"] is None
-    assert body["authorization_id"] is None
+    assert body["authorization_id"] is None and body["refund_of"] is None
     assert isinstance(body["payment_id"], str) and body["created_at"]
 
 

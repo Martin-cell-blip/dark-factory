@@ -17,7 +17,7 @@ def test_correction_shape_and_effect(world):
     body = correct(world.ann, payment["payment_id"], 120, payment["created_at"],
                    reason="wrong amount").json()
     assert set(body) == {"payment_id", "revision", "amount", "effective_at", "recorded_at",
-                         "reason"}
+                         "reason", "correction_batch_id"}
     assert body["payment_id"] == payment["payment_id"] and body["revision"] == 2
     assert body["amount"] == 120 and body["effective_at"] == payment["created_at"]
     assert body["reason"] == "wrong amount"

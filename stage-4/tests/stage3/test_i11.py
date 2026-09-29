@@ -35,9 +35,11 @@ def test_each_revision_has_exactly_the_correction_fields(world):
     replayed = expect(world.ann.post(path, body, key=key), 200).json()
     first, second = expect(world.ann.get(f"/payments/{payment['payment_id']}/revisions"),
                            200).json()["revisions"]
-    fields = {"payment_id", "revision", "amount", "effective_at", "recorded_at", "reason"}
+    fields = {"payment_id", "revision", "amount", "effective_at", "recorded_at", "reason",
+              "correction_batch_id"}  # correction_batch_id from stage 4
     assert set(first) == set(second) == set(created) == fields
     assert first == {"payment_id": payment["payment_id"], "revision": 1, "amount": 300,
                      "effective_at": payment["created_at"],
-                     "recorded_at": payment["created_at"], "reason": ""}
+                     "recorded_at": payment["created_at"], "reason": "",
+                     "correction_batch_id": None}
     assert second == created == replayed

@@ -5,13 +5,11 @@ Mixed into Service, which provides the lock, `_state_now`, `_user` and `_idempot
 """
 import secrets
 
-from . import fields, history
-from .clock import parse_instant
-from .errors import ApiError, forbidden, malformed, not_found, validation
+from . import corrections, fields, history
+from .errors import forbidden, not_found, validation
 from .holds import utc_now
 from .paging import page, page_params
 
-MAX_REASON = 200
 WINDOW_PARAMS = ("from", "to", "known_at")
 
 
@@ -94,33 +92,14 @@ class HistoryEndpoints:
 
     def correct_payment(self, token, key, path, payment_id, body):
         def action(state, user, body):
-            expected, amount, effective_text, reason = _correction_fields(body)
-            payment = state.payments_by_id.get(payment_id)
-            if payment is None:
-                raise not_found("no such payment")
+            expected, amount, effective_text, reason = corrections.parse_fields(body)
+            payment = corrections.find(state, payment_id)
             if payment["from_user_id"] != user["id"]:
                 raise forbidden("only the original sender may correct a payment")
-            if payment["settlement_id"] is not None or payment["authorization_id"] is not None:
-                raise ApiError(422, "linked_payment_immutable",
-                               "settlement members and captures cannot be corrected")
-            latest = state.revisions.latest(payment_id)
-            if expected != latest["revision"]:
-                raise ApiError(409, "stale_revision",
-                               f"the payment is at revision {latest['revision']}")
-            sender, receiver = payment["from_user_id"], payment["to_user_id"]
-            change = amount - latest["amount"]
-            deltas = {sender: -change, receiver: change}
-            for user_id, delta in deltas.items():
-                if delta < 0 and state.available(user_id) < -delta:
-                    raise ApiError(409, "insufficient_funds",
-                                   "the wallet cannot afford this correction now")
-            override = {payment_id: (amount, parse_instant(effective_text))}
-            if not all(history.never_negative(state, u, override) for u in (sender, receiver)):
-                raise ApiError(409, "historical_overdraft",
-                               "a wallet would have been overdrawn in the past")
-            state.move(deltas)
-            return state.revisions.append(payment_id, amount, effective_text,
-                                          state.clock.now(), reason)
+            corrections.check_linked(payment, allow_settlement=False)
+            corrections.check_revision(state, payment, expected, amount)
+            [revision] = corrections.record(state, [(payment, amount, effective_text, reason)])
+            return revision
         return self._idempotent(token, key, path, body, action)
 
     def list_revisions(self, token, payment_id) -> dict:
@@ -132,24 +111,3 @@ class HistoryEndpoints:
                 raise not_found("no such payment")
             return {"revisions": state.revisions.of(payment_id)}
 
-
-def _correction_fields(body: dict):
-    """The correction body: every field required; wrong JSON types 400, rules 422."""
-    for name in ("expected_revision", "amount", "effective_at", "reason"):
-        if name not in body:
-            raise validation(f"{name} is required")
-    expected = body["expected_revision"]
-    if isinstance(expected, bool) or not isinstance(expected, (int, float)):
-        raise malformed("expected_revision must be a number")
-    expected = fields.positive_integer(expected, "expected_revision")
-    amount = fields.count_amount(body["amount"])
-    effective_text = fields.required_string(body, "effective_at")
-    effective = parse_instant(effective_text)
-    if effective is None:
-        raise validation("effective_at must be an RFC 3339 instant with an offset")
-    if effective > utc_now():
-        raise validation("effective_at cannot be later than now")
-    reason = fields.required_string(body, "reason")
-    if not 1 <= len(reason) <= MAX_REASON:
-        raise validation(f"reason must be 1 to {MAX_REASON} characters")
-    return expected, amount, effective_text, reason

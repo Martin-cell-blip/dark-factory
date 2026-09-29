@@ -36,13 +36,16 @@ class Revisions:
                      payment["created_at"], "")
 
     def append(self, payment_id: str, amount: int, effective_at: str, recorded_at: str,
-               reason: str) -> dict:
-        return dict(self._append(payment_id, amount, effective_at, recorded_at, reason))
+               reason: str, correction_batch_id=None) -> dict:
+        return dict(self._append(payment_id, amount, effective_at, recorded_at, reason,
+                                 correction_batch_id))
 
-    def _append(self, payment_id, amount, effective_at, recorded_at, reason) -> dict:
+    def _append(self, payment_id, amount, effective_at, recorded_at, reason,
+                correction_batch_id=None) -> dict:
         revisions = self._by_payment[payment_id]
         revision = {"payment_id": payment_id, "revision": len(revisions) + 1, "amount": amount,
-                    "effective_at": effective_at, "recorded_at": recorded_at, "reason": reason}
+                    "effective_at": effective_at, "recorded_at": recorded_at, "reason": reason,
+                    "correction_batch_id": correction_batch_id}
         revisions.append(revision)
         self._recorded[payment_id].append(parse_time(recorded_at))
         self._effective[payment_id].append(parse_time(effective_at))

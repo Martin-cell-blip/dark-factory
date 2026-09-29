@@ -128,3 +128,25 @@ Foreman decisions S3-D1 to S3-D7 are built as stated. The builder's own choices:
 - **B32. Correction fields.** `expected_revision` must be a JSON number (other types 400);
   `amount` follows the stage-1 amount rule but allows 0; effective_at must not be later than
   the wall-clock now at validation; `reason` counts code points.
+
+## Stage 4
+
+Foreman decisions S4-D1 to S4-D6 are built as stated. The builder's own choices:
+
+- **B33. One correction engine** (`pocketful/corrections.py`) serves single corrections and
+  batches: field rules, which payments may be corrected, the expected revision, refunded
+  amounts, then one combined check of current available funds and history, and all new
+  revisions recorded at one instant.
+- **B34. Correction check order** extends S3-D2: ... 422 linked_payment_immutable (captures,
+  refunds; settlement members outside a batch) -> 409 stale_revision -> 422
+  refund_exceeds_payment (below what was refunded) -> 409 insufficient_funds -> 409
+  historical_overdraft. In a batch each item runs these per-item checks in input order, then
+  settlement completeness (incomplete_settlement), then one effective instant per settlement
+  (validation_failed), then the combined funds checks.
+- **B35. Batch shape.** `corrections` must be an array of 1 to 32 objects, each with a
+  string `payment_id`, all distinct; anything else is 422 `validation_failed`. Item fields
+  follow the single-correction rules (wrong JSON types 400, rules 422).
+- **B36. Refunds** are ordinary payments with `refund_of` set, recorded through the same
+  guard as every payment (the receiver's available funds). `refund_of` is null on every
+  other payment, including payments imported from earlier stages' exports; stored
+  responses from before the upgrade replay as stored.
