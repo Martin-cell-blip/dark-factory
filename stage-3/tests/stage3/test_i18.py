@@ -3,11 +3,12 @@ import time
 
 import seed
 from client import expect
-from timefx import ago, ahead, at, me_at, now, signed_in
+from timefx import ago, ahead, at, me_at, pay, signed_in
 
 
-def now_text():
-    return now().isoformat()
+def _server_now(client) -> str:
+    """The service's own clock: the created_at of a 1-unit payment made now."""
+    return pay(client, "ben", 1)["created_at"]
 
 
 def _hold(client, to_handle, amount):
@@ -94,7 +95,8 @@ def test_closed_holds_that_arrive_by_seed(reset):
     """S3-D8: capture -> latest capture payment, expired -> expires_at, voided -> reset time;
     a seeded closed hold holds nothing at any instant."""
     deadline = ago(hours=2)
-    before = now_text()
+    reset(seed.fixture())
+    before = _server_now(signed_in("ann")[0])
     reset(seed.fixture(
         payments=[{"id": "p_cap", "from_user_id": "u_ann", "to_user_id": "u_ben", "amount": 300,
                    "created_at": ago(hours=4), "authorization_id": "a_cap"}],
@@ -106,13 +108,13 @@ def test_closed_holds_that_arrive_by_seed(reset):
              "status": "expired", "expires_at": deadline, "created_at": ago(hours=6)},
             {"id": "a_void", "from_user_id": "u_ann", "to_user_id": "u_cat", "amount": 700,
              "status": "voided", "expires_at": ahead(hours=2), "created_at": ago(hours=6)}]))
-    after = now_text()
     [ann] = signed_in("ann")
+    after = _server_now(ann)
     capture = next(p for p in expect(ann.get("/activity"), 200).json()["payments"]
                    if p["payment_id"] == "p_cap")
     assert _find(ann, "a_cap")["closed_at"] == capture["created_at"]
     assert _find(ann, "a_exp")["closed_at"] == deadline
     voided = _find(ann, "a_void")["closed_at"]
-    assert before <= voided <= after
+    assert before <= voided <= after, "reset time, read on the service's own clock"
     for hours in (7, 5.5, 4.5, 3, 1):
         assert _view(ann, as_of=ago(hours=hours))[1] == 0
