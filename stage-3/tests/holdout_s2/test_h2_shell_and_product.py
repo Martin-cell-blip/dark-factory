@@ -3,8 +3,9 @@ import re
 import time
 
 import pytest
+from playwright.sync_api import sync_playwright
 
-from holdout2_client import chromium, BASE, authorize, capture, fixture, iso, make_world, void
+from holdout2_client import BASE, authorize, capture, fixture, iso, make_world, void
 
 RFC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")
 MICRO = re.compile(r"\d{2}:\d{2}:\d{2}\.\d{3,}")
@@ -16,8 +17,10 @@ def sel(t):
 
 @pytest.fixture(scope="module")
 def browser():
-    with chromium() as b:
+    with sync_playwright() as p:
+        b = p.chromium.launch()
         yield b
+        b.close()
 
 
 def signed_in(browser, width):

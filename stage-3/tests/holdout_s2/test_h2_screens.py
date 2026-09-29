@@ -7,8 +7,9 @@ import json
 import re
 
 import pytest
+from playwright.sync_api import sync_playwright
 
-from holdout2_client import (chromium, BASE, Client, ask, authorize, call, fixture, login, make_world,
+from holdout2_client import (BASE, Client, ask, authorize, call, fixture, login, make_world,
                             new_key, pay, reset, user)
 
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$")
@@ -28,8 +29,10 @@ def money(minor, mu=2, cur="EUR"):
 
 @pytest.fixture(scope="module")
 def browser():
-    with chromium() as b:
+    with sync_playwright() as p:
+        b = p.chromium.launch()
         yield b
+        b.close()
 
 
 @pytest.fixture(params=[1280])
