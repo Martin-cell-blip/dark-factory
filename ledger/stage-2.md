@@ -1,0 +1,91 @@
+# Acceptance ledger - Pocketful stage 2 (folder `stage-2/`)
+
+Source: `pocketful/spec/stage-2.md`; stage-1.md still applies. The shipped checks cover about 35% of this stage; every requirement is graded.
+
+**How items are checked.** Every command runs from the stage-2 folder against a running service started from its Dockerfile (use your own container name and port). Tests read POCKETFUL_URL (and POCKETFUL_URL_B where a second instance is needed), reset their own fixture, and are black-box pytest tests; screen tests drive Chromium with the Playwright sync API, finding elements only by data-testid, as the shipped samples do.
+
+## Decisions recorded by the foreman
+
+- S2-D1. Stage-1 items and decisions D1-D8 still apply. Stage-1 tests are carried in tests/acceptance and tests/holdout; stage-2 items live in tests/stage2 so item numbers do not collide.
+- S2-D2. Every payment object carries authorization_id (null unless created by a capture), beside request_id and settlement_id.
+- S2-D3. A capture of an authorisation that is still open but whose expires_at has passed is 409 authorization_expired; a capture of any authorisation whose status is not open (captured, voided, or already expired) is 409 authorization_not_open, except that a clock-expired one answers authorization_expired. Void of an expired one is 409 authorization_not_open.
+- S2-D4. A wrong-typed final (not boolean) is 400 malformed_request (stage-1 section 5 wrong-type rule).
+- S2-D5. Screens are tested in Chromium via Playwright at 375 px and 1280 px wide; product-quality item 32 is judged by the auditor from screenshots at both widths against DESIGN.md.
+- S2-D6. Boundary item 36: stage 3 adds GET /statement; it must be absent here.
+
+## Items
+
+1. Stage 1 still holds: the stage-1 acceptance and holdout tests copied from stage-1 pass against the stage-2 service, changed only where stage 2 changes a stated behaviour (GET /me gains total, available, held; payments gain authorization_id)  
+   check: `python -m pytest tests/acceptance tests/holdout -q`
+2. GET /me -> {user_id, display_name, handle, balance, total, available, held, currency, minor_units}; balance equals total always; held is the sum of open holds; available = total - held, never negative; with no open holds balance = total = available and held = 0  
+   check: `python -m pytest tests/stage2/test_i02.py -q`
+3. Fixture: authorization_ttl_seconds defaults to 600 and, if supplied, must be a positive integer (else 422 validation_failed); authorizations array optional (omission = empty); seeded authorization fields id, from_user_id, to_user_id, amount, note, visibility, status (open|captured|voided|expired), expires_at; seeded ids verbatim; seeded balance is total and available is derived; a sum of seeded unexpired open holds above a user's balance -> 422 validation_failed changing nothing; seeded open holds are reflected immediately after reset  
+   check: `python -m pytest tests/stage2/test_i03.py -q`
+4. POST /authorizations (Idempotency-Key required, caller is the payer) -> 201 {authorization_id, from_user_id, from_handle, to_user_id, to_handle, amount, captured_amount: 0, remaining_amount, currency, note, visibility, status: "open", expires_at, payment_id: null, payment_ids: [], created_at}; note and visibility optional with POST /payments defaults; expires_at = created_at + authorization_ttl_seconds  
+   check: `python -m pytest tests/stage2/test_i04.py -q`
+5. POST /authorizations errors: available below amount -> 409 insufficient_funds; amount below 1, above 1000000000 or not an integer -> 422 validation_failed; to_handle own handle -> 422 self_payment; note over 200 or visibility neither public nor private -> 422 validation_failed; unknown handle -> 404 not_found; an open authorisation is never an activity item  
+   check: `python -m pytest tests/stage2/test_i05.py -q`
+6. Holds: a hold moves no money (sum of totals equals the seeded total); held funds cannot fund POST /payments, POST /requests/{id}/pay, settlement net debits or new authorizations, each 409 insufficient_funds evaluated against available; with no open holds every stage-1 result is unchanged; POST /payments stays immediate with no hold; paying a request stays immediate; POST /splits unchanged  
+   check: `python -m pytest tests/stage2/test_i06.py -q`
+7. POST /authorizations/{id}/capture (Idempotency-Key required, receiver only): amount optional, defaults to the remaining amount; 201 with a payment in exactly the POST /payments shape plus authorization_id set, request_id null, amount = captured amount, note and visibility copied, shown in the activity feed by the ordinary rule; default final capture sets status captured, captured_amount, payment_id and releases the uncaptured remainder in the same step; every payment not created by a capture carries authorization_id: null  
+   check: `python -m pytest tests/stage2/test_i07.py -q`
+8. Capture errors and replays: not open -> 409 authorization_not_open (a second capture after a final capture); expires_at at or before now -> 409 authorization_expired; amount above the uncaptured remainder -> 422 capture_exceeds_authorization; amount below 1 or not an integer -> 422 validation_failed; caller not the receiver, including a caller who is neither party -> 403 forbidden; unknown -> 404 not_found; {} and {"amount": 2000} under one key -> 409 idempotency_key_reuse; a replay returns 200 with the original payment and moves no money  
+   check: `python -m pytest tests/stage2/test_i08.py -q`
+9. Extended capture mode: final is boolean, default true (wrong type -> 400 malformed_request); final: false with a remainder keeps status open and the remainder held; further captures allowed up to the remainder; capturing the entire remainder closes it even with final: false; a final capture closes it and releases any remainder; captured_amount cumulative; payment_id is the latest capture; payment_ids lists every capture in order; remaining_amount on every authorization response (zero when closed); void or expiry of a partially captured authorization releases only the remainder and keeps all capture records  
+   check: `python -m pytest tests/stage2/test_i09.py -q`
+10. POST /authorizations/{id}/void (no idempotency key, payer only) -> 200 authorisation with status voided and hold released; voiding again -> 200 current state; captured or expired -> 409 authorization_not_open; caller not the payer, including a caller who is neither party -> 403 forbidden; unknown -> 404 not_found  
+   check: `python -m pytest tests/stage2/test_i10.py -q`
+11. Expiry by the clock: an authorisation whose expires_at is at or before now is expired and holds nothing, with no request needed at the deadline; GET /authorizations shows status expired and status=expired matches it, status=open never does; GET /me includes the released remainder in available; capture after the deadline -> 409 authorization_expired  
+   check: `python -m pytest tests/stage2/test_i11.py -q`
+12. GET /authorizations -> {authorizations, has_more}: only authorisations where the caller is payer or receiver, newest first by created_at; direction outgoing|incoming|absent; status open|captured|voided|expired|absent; unknown direction or status -> 422 validation_failed; limit, offset and has_more exactly as GET /requests (plain decimal digits, 1..200, >= 0)  
+   check: `python -m pytest tests/stage2/test_i12.py -q`
+13. Concurrency on the seven idempotent paths: concurrent identical requests with an unused key -> exactly one 201, the rest 200 with the same body; concurrent authorizations and payments never make available negative; concurrent captures never exceed the authorized amount and a closed hold cannot be captured again; results equal some one-at-a-time order and the invariants hold at every read (sum of totals = seeded total, available >= 0)  
+   check: `python -m pytest tests/stage2/test_i13.py -q`
+14. Export/import: a stage-2 service accepts, unchanged, an export produced by this team's stage-1 service (tokens, logins, balances, payments, requests, settlements, idempotent replays preserved; no holds); stage-2 export/import round-trips authorizations, holds, captures, expiries and their idempotent responses  
+   check: `python -m pytest tests/stage2/test_i14.py -q`
+15. Screens reachable by URL: /, /requests, /split, /signup, /login and /authorizations serve HTML for Accept: text/html; GET /requests and GET /authorizations without that header still return JSON; other screens reachable through the UI; signed-out visits to signed-in screens lead to login  
+   check: `python -m pytest tests/stage2/test_i15.py -q`
+16. Auth screens: signup-email, signup-password, signup-display-name, signup-submit, login-email, login-password, login-submit; auth-error present only when there is an error; current-user visible on every screen when signed in and contains the display name; current-handle text is exactly the handle (no @, no other words); logout-button signs out  
+   check: `python -m pytest tests/stage2/test_i16.py -q`
+17. Wallet numbers: wallet-balance text is exactly the formatted total with data-amount="{minor units}"; formatted amount = decimal with exactly minor_units places, one space, currency code (100.00 EUR; 1200 JPY with no decimal point; BHD with 3 places); wallet-available formatted with data-amount and presented as the headline number; wallet-held formatted with data-amount, absent when held is zero; correct immediately after a reset with open holds  
+   check: `python -m pytest tests/stage2/test_i17.py -q`
+18. Pay form on /: pay-handle, pay-amount (decimal as typed: 15.00 and 15 submit 1500, 15.5 submits 1550 at minor_units 2), pay-note, pay-visibility (option values public, private), pay-submit; nonnumeric input or more than minor_units decimals (15.005) shows pay-error and sends nothing; pay-error on any refusal including insufficient funds; values kept after success; resubmitting unchanged sends no new payment (balance falls once, one feed item, no pay-error); changing any field makes the next submit a new payment  
+   check: `python -m pytest tests/stage2/test_i18.py -q`
+19. Request form on /: request-handle, request-amount, request-note, request-submit with the same decimal rules; request-error on refusal or invalid input without sending  
+   check: `python -m pytest tests/stage2/test_i19.py -q`
+20. Activity feed on /: activity-list children newest first in the DOM; activity-item-{payment_id} per visible payment with data-visibility public|private; activity-parties-{payment_id} contains both handles; activity-amount-{payment_id} is exactly the formatted amount; activity-note-{payment_id} is exactly the note and present when empty; empty-activity shown instead of the list when nothing is visible  
+   check: `python -m pytest tests/stage2/test_i20.py -q`
+21. Requests screen /requests: incoming-list and outgoing-list; request-item-{request_id} with data-status; request-amount-{request_id} exactly formatted; request-pay-{id} and request-decline-{id} only on pending incoming; request-cancel-{id} only on pending outgoing; request-error when a pay, decline or cancel is refused; empty-requests when both lists are empty  
+   check: `python -m pytest tests/stage2/test_i21.py -q`
+22. Split screen /split: split-amount (same decimal rule), split-handles (comma-separated handles in order), split-note, split-submit; split-preview shows one split-share-{handle} per participant with exactly the formatted share by the stage-1 section 9 rule before anything is posted; preview and submitted split have identical shares; split-error when refused  
+   check: `python -m pytest tests/stage2/test_i22.py -q`
+23. After any successful action the balance, feed and request lists on the same page show the new state without a manual reload, and data refreshes only after the write succeeded  
+   check: `python -m pytest tests/stage2/test_i23.py -q`
+24. wallet-refresh on / refreshes balance and feed without clearing the pay form; latest refresh wins: a delayed earlier read never overwrites a later refresh, including out-of-order responses; available and held follow the same rules  
+   check: `python -m pytest tests/stage2/test_i24.py -q`
+25. Competing clients: a payment refused because another client spent the balance shows pay-error, refreshes balance and feed, and keeps every pay input; a request cancelled elsewhere while its pay button is visible shows request-error when payment is refused and refreshes the list so the stale pay button disappears  
+   check: `python -m pytest tests/stage2/test_i25.py -q`
+26. Lost payment response (including after POST /payments commits): show pay-uncertain with nonempty text, not pay-error; the unchanged form retries with the same Idempotency-Key and body; a successful retry removes pay-error and pay-uncertain, refreshes balance and feed, and money moves exactly once  
+   check: `python -m pytest tests/stage2/test_i26.py -q`
+27. Upgrade: a stage-2 service imports this team's stage-1 export; a browser signed in before the export/import stays signed in; pending requests stay payable through /requests; a payment whose response was lost before export is retryable after import with the same key and body, recovers the original payment and refreshes the imported balance; form and pending retry identity survive without a reload  
+   check: `python -m pytest tests/stage2/test_i27.py -q`
+28. Authorisations UI: authorize-handle, authorize-amount, authorize-note, authorize-visibility, authorize-submit with pay-form input rules; authorize-error on refusal including insufficient available funds; /authorizations has authorization-list (children newest first), authorization-item-{id} with data-status, authorization-amount-{id} exactly formatted, authorization-captured-{id} only when status is captured, authorization-expires-{id} text is the RFC 3339 expires_at, authorization-capture-amount-{id} prefilled with the remaining amount and authorization-capture-{id} only on incoming open, authorization-void-{id} only on outgoing open, authorization-error when a capture or void is refused, empty-authorizations when the list is empty  
+   check: `python -m pytest tests/stage2/test_i28.py -q`
+29. No horizontal page scrolling on every required route at a 375 CSS-pixel viewport and at 1280 px (document scrollWidth <= viewport width), signed in with data and signed out  
+   check: `python -m pytest tests/stage2/test_i29.py -q`
+30. Every input has a visible associated label; every interactive control is reachable by keyboard and shows a visible focus indicator  
+   check: `python -m pytest tests/stage2/test_i30.py -q`
+31. Runtime assets (fonts, scripts, stylesheets) are served by the service: loading every route makes no request to any other host  
+   check: `python -m pytest tests/stage2/test_i31.py -q`
+32. Product quality (judged at 375 px and 1280 px from screenshots): coherent calm consumer-finance look built from DESIGN.md (colour tokens with checked contrast, type scale, spacing); available funds are the clearest monetary value with total and held secondary; available, held, pending, loading, successful, refused and uncertain states visually distinct; considered empty, loading and error states; consistent navigation across routes; people, amounts and timestamps formatted for people, technical ids only where they help; primary actions easy to identify  
+   check: judged by the auditor (no command)
+33. The image builds and runs on its own with -e PORT and a port mapping, no outbound network at run time; RUN.md gives one command a stranger can follow; no nested .git  
+   check: `docker build -t pocketful-stage-2-ledger .`
+34. The event harness claims stage 2: last line of the --stage 2 run reads 'claimed stage: 2' (stage 3 suite fails)  
+   check: judged by the auditor (no command)
+35. The folder's whole test suite passes  
+   check: `python -m pytest tests -q`
+36. Boundary: stage 3's statement capability is absent: an authenticated GET /statement does not return 200 (expected 404 not_found)  
+   check: `python -m pytest tests/stage2/test_i36.py -q`
+37. Every fixed name (route, field, code, status, data-testid) appears verbatim; code another developer can maintain (files by responsibility, spec vocabulary, no dead code)  
+   check: judged by the auditor (no command)
