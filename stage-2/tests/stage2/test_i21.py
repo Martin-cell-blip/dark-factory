@@ -62,3 +62,24 @@ def test_refusal_shows_request_error(world, page):
 def test_empty_requests(world, page):
     _open(page)
     page.wait_for_selector(sel("empty-requests"))
+
+
+def test_items_sit_in_the_right_list_and_closed_ones_have_no_buttons(world, page):
+    asked_of_me = _ask(world.ben, "ann")
+    i_asked = _ask(world.ann, "cat", 300)
+    paid = _ask(world.cat, "ann", 20)
+    expect(world.ann.write(f"/requests/{paid}/pay", {}), 201)
+    cancelled = _ask(world.ann, "ben", 40)
+    expect(world.ann.post(f"/requests/{cancelled}/cancel"), 200)
+    declined = _ask(world.ben, "ann", 60)
+    expect(world.ann.post(f"/requests/{declined}/decline"), 200)
+    _open(page)
+    page.wait_for_selector(sel(f"request-item-{asked_of_me}"))
+    for rid in (asked_of_me, paid, declined):
+        assert page.query_selector(f"{sel('incoming-list')} {sel('request-item-' + rid)}")
+    for rid in (i_asked, cancelled):
+        assert page.query_selector(f"{sel('outgoing-list')} {sel('request-item-' + rid)}")
+    for rid, status in ((paid, "paid"), (cancelled, "cancelled"), (declined, "declined")):
+        assert page.get_attribute(sel(f"request-item-{rid}"), "data-status") == status
+        for action in ("pay", "decline", "cancel"):
+            assert page.query_selector(sel(f"request-{action}-{rid}")) is None

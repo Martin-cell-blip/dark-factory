@@ -1,6 +1,7 @@
 """Item 18: the pay form's decimal input, errors, kept values and replays."""
 import pytest
 
+import seed
 from client import expect
 from holdfx import sel
 from ui import fill_form, log_in, open_home, pay, posts, wait_amount
@@ -79,3 +80,53 @@ def test_changing_a_field_makes_a_new_payment(world, page):
     wait_amount(page, "wallet-balance", 4500)
     assert page.query_selector(sel("pay-error")) is None
     assert len(expect(world.ann.get("/activity"), 200).json()["payments"]) == 3
+
+
+CONVERSIONS = [
+    ("JPY", 0, "1200", 1200), ("BHD", 3, "1.234", 1234), ("BHD", 3, "1.005", 1005),
+    ("EUR", 2, "0.29", 29), ("EUR", 2, "1000000.01", 100000001), ("EUR", 2, "0.07", 7),
+]
+REFUSED = [("JPY", 0, "12.5"), ("JPY", 0, "12."), ("BHD", 3, "1.2345"), ("EUR", 2, "1.001")]
+FORMS = {
+    "pay": ("/", "/payments", "amount"),
+    "request": ("/", "/requests", "amount"),
+    "authorize": ("/authorizations", "/authorizations", "amount"),
+    "split": ("/split", "/splits", "amount"),
+}
+
+
+def _submit(page, form, handle, typed):
+    route, _, _ = FORMS[form]
+    page.goto(route)
+    page.wait_for_selector(sel(f"{form}-submit"))
+    if form == "split":
+        page.fill(sel("split-amount"), typed)
+        page.fill(sel("split-handles"), f"ann,{handle}")
+    else:
+        fill_form(page, form, handle, typed)
+    page.click(sel(f"{form}-submit"))
+
+
+@pytest.mark.parametrize("form", list(FORMS))
+@pytest.mark.parametrize("currency,units,typed,minor", CONVERSIONS)
+def test_exact_decimal_conversion_on_every_amount_form(reset, page, form, currency, units,
+                                                       typed, minor):
+    reset(seed.fixture(users=[seed.user("ann", 200000000), seed.user("ben", 1)],
+                       currency=currency, minor_units=units))
+    log_in(page)
+    sent = posts(page, FORMS[form][1])
+    _submit(page, form, "ben", typed)
+    page.wait_for_selector(sel(f"{form}-success"))
+    sent_amount = sent[-1].post_data_json["amount"]
+    assert sent_amount == minor and isinstance(sent_amount, int)
+
+
+@pytest.mark.parametrize("form", list(FORMS))
+@pytest.mark.parametrize("currency,units,typed", REFUSED)
+def test_too_many_places_refused_on_every_amount_form(reset, page, form, currency, units, typed):
+    reset(seed.fixture(currency=currency, minor_units=units))
+    log_in(page)
+    sent = posts(page, FORMS[form][1])
+    _submit(page, form, "ben", typed)
+    page.wait_for_selector(sel(f"{form}-error"))
+    assert sent == []

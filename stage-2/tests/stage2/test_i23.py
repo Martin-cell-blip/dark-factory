@@ -1,7 +1,7 @@
 """Item 23: after a successful action the same page shows the new state without a reload,
 and refreshes only after the write succeeded."""
 from client import expect
-from holdfx import sel
+from holdfx import authorize, sel
 from ui import log_in, pay, wait_amount
 
 
@@ -64,3 +64,17 @@ def test_holds_page_refreshes_after_hold_capture_and_release(world, page, new_pa
     ben.click(sel(f"authorization-capture-{aid}"))
     ben.wait_for_selector(f"{sel('authorization-item-' + aid)}[data-status='captured']")
     wait_amount(ben, "wallet-balance", 3000)
+
+
+def test_void_updates_list_and_wallet_without_reload(world, page):
+    aid = authorize(world.ann, "ben", 2500)["authorization_id"]
+    log_in(page)
+    page.goto("/authorizations")
+    wait_amount(page, "wallet-held", 2500)
+    navigations = []
+    page.on("framenavigated", lambda frame: navigations.append(frame.url))
+    page.click(sel(f"authorization-void-{aid}"))
+    page.wait_for_selector(f"{sel('authorization-item-' + aid)}[data-status='voided']")
+    wait_amount(page, "wallet-available", 10000)
+    assert page.query_selector(sel("wallet-held")) is None
+    assert navigations == []

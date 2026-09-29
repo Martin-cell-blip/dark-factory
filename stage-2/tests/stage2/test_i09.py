@@ -2,7 +2,7 @@
 import pytest
 
 import seed
-from client import expect
+from client import expect, new_key
 from holdfx import authorize, capture, me, signed_in
 
 
@@ -81,3 +81,12 @@ def test_every_authorization_response_has_remaining_amount(world):
     voided = expect(world.ann.post(f"/authorizations/{created['authorization_id']}/void"),
                     200).json()
     assert voided["remaining_amount"] == 0
+
+
+@pytest.mark.parametrize("second", [{"amount": 700, "final": True}, {"amount": 700, "final": False}])
+def test_adding_final_changes_the_body(world, second):
+    held = authorize(world.ann, "ben", 2000)
+    path = f"/authorizations/{held['authorization_id']}/capture"
+    key = new_key()
+    expect(world.ben.post(path, {"amount": 700}, key=key), 201)
+    expect(world.ben.post(path, second, key=key), 409, "idempotency_key_reuse")

@@ -53,3 +53,13 @@ def test_signed_in_browser_survives_the_upgrade(world, page):
     page.click(sel(f"request-pay-{rid}"))
     page.wait_for_selector(f"{sel('request-item-' + rid)}[data-status='paid']")
     page.wait_for_selector(sel("current-user"))
+
+
+def test_stage_one_replay_is_unchanged_across_the_upgrade(world):
+    _import(STAGE1["export"])
+    exported = expect(request("GET", "/_test/export"), 200).json()
+    _import(exported)
+    ann = Client(STAGE1["tokens"]["ann"])
+    paid = STAGE1["payment"]
+    replay = expect(ann.post("/payments", paid["body"], key=paid["key"]), 200).json()
+    assert replay == paid["response"] and "authorization_id" not in replay

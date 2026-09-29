@@ -75,3 +75,13 @@ def test_clock_expiry_survives_a_round_trip(reset):
     _import(document)
     capture(ben, aid, {}, 409, "authorization_expired")
     assert me(ann)["held"] == 0
+
+
+def test_stage_one_replays_are_returned_as_first_stored(reset):
+    reset(seed.fixture())
+    _import(STAGE1["export"])
+    ann = Client(STAGE1["tokens"]["ann"])
+    paid = STAGE1["payment"]
+    replay = expect(ann.post("/payments", paid["body"], key=paid["key"]), 200)
+    assert replay.json() == paid["response"]
+    assert "authorization_id" not in replay.json(), "S2-D8: stored responses are not rewritten"

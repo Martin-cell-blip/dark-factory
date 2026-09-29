@@ -1,7 +1,9 @@
 """Item 6: holds reserve money without moving it; held funds pay for nothing else."""
+import time
+
 import seed
 from client import balances_sum, expect, login
-from holdfx import authorize, me
+from holdfx import authorize, capture, me, signed_in
 
 
 def test_a_hold_moves_no_money(world):
@@ -59,3 +61,21 @@ def test_payments_requests_and_splits_stay_immediate(world):
                    201).json()
     assert split["requests"][0]["amount"] == 15000 and split["requests"][0]["status"] == "pending"
     assert me(world.ann)["held"] == 1000
+
+
+def test_a_capture_spends_the_money_held_for_it(world):
+    held = authorize(world.cat, "ann", 500)
+    assert me(world.cat)["available"] == 0
+    capture(world.ann, held["authorization_id"], {"amount": 200, "final": False})
+    capture(world.ann, held["authorization_id"], {"amount": 300})
+    assert me(world.cat) == {**me(world.cat), "total": 0, "held": 0, "available": 0}
+    assert me(world.ann)["total"] == 10500
+
+
+def test_released_funds_are_spendable_at_once_after_expiry(reset):
+    reset(seed.fixture(authorization_ttl_seconds=1))
+    [cat] = signed_in("cat")
+    authorize(cat, "ann", 500)
+    time.sleep(1.3)
+    expect(cat.write("/authorizations", {"to_handle": "ben", "amount": 300}), 201)
+    expect(cat.write("/payments", {"to_handle": "ben", "amount": 200}), 201)

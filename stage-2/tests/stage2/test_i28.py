@@ -112,3 +112,13 @@ def test_invalid_capture_amount_is_refused_without_sending(world, page):
 def test_empty_authorizations(world, page):
     _open(page)
     page.wait_for_selector(sel("empty-authorizations"))
+
+
+@pytest.mark.parametrize("typed", ["1.234", "ten", "", "-3"])
+def test_invalid_authorize_amount_posts_nothing(world, page, typed):
+    _open(page)
+    sent = posts(page, "/authorizations")
+    fill_form(page, "authorize", "ben", typed)
+    page.click(sel("authorize-submit"))
+    page.wait_for_selector(sel("authorize-error"))
+    assert [r for r in sent if r.url.split("?")[0].endswith("/authorizations")] == []
