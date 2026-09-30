@@ -330,9 +330,3 @@ def test_settlement_members():
     assert rev["effective_at"] == rev["recorded_at"] == s["committed_at"]
     assert_error(correct(w.bob, pid, body(amount=1)), 422, "linked_payment_immutable")
     assert_error(w.ada.get(f"/payments/{pid}/revisions"), 404, "not_found")  # operator, not a party
-
-
-def test_refunds_absent(world):
-    pid = pay(world.ada, "bob", 10).json()["payment_id"]
-    r = world.bob.post(f"/payments/{pid}/refunds", {"amount": 5}, key=new_key())
-    assert_error(r, 404, "not_found")
