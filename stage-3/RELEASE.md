@@ -73,3 +73,19 @@ The folder claims its own tier, stage 3, and the stage 4 suite fails.
 3. **Tests run beside the service, not in its image.** The service image contains no tests, pytest or Playwright. "Tests in the container" means a runner image layered on the service image, on the same offline network.
 4. **Upgrade tests need running services.** They need live stage-1 and stage-2 containers (`POCKETFUL_STAGE1_URL`, `POCKETFUL_STAGE2_URL`) built from the frozen folders.
 5. **In-memory state.** State lives in memory and is lost on restart, by design (see `RUN.md`).
+
+## Addendum (2026-09-30): the whole suite, 10 repeats
+
+The auditor saw one unidentified failure in 10 full-suite runs at 9bcc07b: 1095 passed, 1 failed,
+with no test name captured. The release checks above ran the full suite only once. To cover that
+gap, I rebuilt all four images from the same clone at 9bcc07b and started them offline under the same
+caps. I then ran the whole suite 10 times back to back on one service container, with no restart
+between runs:
+
+- Command: `python -m pytest tests -q -rfE --tb=long` ×10, in the runner container.
+- Exit codes: `0 0 0 0 0 0 0 0 0 0`. Every run had 1096 passed, with no FAILED or ERROR lines.
+- Peak memory after all 10 runs: 295,190,528 bytes (282 MiB), `oom_kill 0`.
+
+The failure did not reproduce in 10 runs. Across the gatekeeper's and the auditor's runs together, 1
+of 20 full runs failed, and its test is still unknown. This is carried as a known limitation: a
+possible intermittent failure somewhere under `tests/`, at about 1 in 20 or less.
