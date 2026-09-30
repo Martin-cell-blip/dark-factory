@@ -99,27 +99,51 @@ mention it.
 ## Measured cost and time
 
 Measured with `tools/spend.py`, which reads each seat's provider session from Band and
-sums the tokens in the runtimes' own logs, and with `tools/room_metrics.py` on the room
-log. The seats run on subscriptions, so there is no metered price;
+sums the tokens in the runtimes' own logs, and with `tools/room_metrics.py` on
+`room.json`. The seats run on one Claude Max subscription, so there is no metered price;
 tokens are the cost.
 
-Practice run on the event's unscored practice track, four stages, every seat on Claude
-Code: 5 h 20 min wall clock, of which the host slept 2 h 29 min, so 2 h 51 min of work and
-568 model calls.
+The submitted run, track pocketful: one dispatched message, four stages, 14 h 38 min in
+the room, 64 commits by the seats (builder 38, foreman 13, auditor 7, gatekeeper 6), no
+question to the human.
+
+| Stage | Wall clock | Packets | Rejections | Tests | Shipped checks, strictest mode |
+|---|---|---:|---:|---:|---|
+| 1 payments and settlements | 2 h 43 min | 5 | 3 | 547 | 147/147; the stage 2 suite fails |
+| 2 wallet screens and holds | 3 h 40 min | 5 | 4 | 924 | and 35/35; the stage 3 suite fails |
+| 3 statements and corrections | 3 h 10 min | 4 | 2 | 1,096 | and 6/6; the stage 4 suite fails |
+| 4 refunds and batch corrections | 4 h 50 min | 2 | 0 | 1,179 | and 5/5 |
 
 | Seat | Model | Input | Cached input | Output |
 |---|---|---:|---:|---:|
-| foreman | claude-opus-5-5 | 338,685 | 15,325,606 | 74,968 |
-| builder | claude-opus-5-5 | 418,971 | 21,812,813 | 116,484 |
-| auditor | claude-opus-5-5 | 518,969 | 27,994,993 | 127,984 |
-| gatekeeper | claude-opus-5-5 | 297,127 | 15,253,433 | 58,898 |
-| total | | 1,573,752 | 80,386,845 | 378,334 |
+| foreman | claude-opus-5-5 | 537,873 | 31,938,363 | 117,765 |
+| builder | claude-opus-5-5 | 1,121,139 | 197,643,069 | 556,268 |
+| auditor | claude-opus-5-5 | 1,396,711 | 174,808,626 | 300,896 |
+| gatekeeper | claude-opus-5-5 | 748,916 | 28,808,249 | 82,057 |
+| total | | 3,804,639 | 433,198,307 | 1,056,986 |
 
-The builder produced under a third of the output tokens; the seats that verify did most of
-the reading. 7 evidence packets, 3 rejections, 1 release held, 5 ledger amendments, 2 of
-them from the auditor's coverage check. Every stage claimed 100% of its own suite in the
-strictest mode, and every next-stage suite the harness runs failed against the earlier
-folder, as it must; an independent re-run after the report agreed.
+On the plan's own meter the account used about 14 points of its weekly limit during the
+run and never reached the five-hour limit. The builder wrote about half of the output tokens; the seats that
+verify did about half of the reading.
+
+What the verification caught, before any release:
+
+- Before the first packet of each stage, the auditor's coverage check found 19
+  requirements the ledgers had missed (8, 8, 3 and 0 by stage), each quoted from the
+  specification.
+- Stage 1: an amount of 5,000 digits answered 400 where the specification requires 422;
+  resetting 1,000 users took 10.3 s; fifty 8 MiB bodies broke the 2 GiB memory cap; a build
+  step's output could not be reproduced.
+- Stage 2: the loading and error screens rendered without the app shell; hold times mixed
+  UTC and local time; closed holds still showed an expiry line.
+- Stage 3: a test compared the host clock with the container clock, which ran 34-47 ms
+  ahead.
+- Stages 3 and 4: about one full run in twenty timed out while connecting, only through
+  the auditor's host port mapping; twenty full runs on internal networks passed. It is
+  recorded as a limitation, not hidden.
+
+A practice run on the event's practice track, with the same seats, took 2 h 51 min of work
+and 80 million cached input tokens; its lessons are items 10-12 below.
 
 ## What we tried that failed
 
@@ -161,11 +185,29 @@ and a practice run on the event's practice track each left a rule in the factory
 12. A Windows path in a handoff lost its backslashes to escape processing on the way into
     the room. Paths in messages are written with forward slashes.
 
+The submitted run left three more. The mandates stay as they ran, so these are the next
+changes, not yet made:
+
+13. Evidence packets crossed ledger amendments: about one round per stage went to a packet
+    built against a ledger the auditor had just changed. Next: the builder names the ledger
+    commit it built against and the auditor rejects a stale one unread.
+14. A builder commit swept up the auditor's uncommitted edits to its holdout tests in the
+    shared working tree; the builder took them back out one commit later. Next: the
+    auditor edits tests only in its own worktree.
+15. One full run in twenty failed to connect, and only through a host port mapping; runs
+    on an internal container network never failed. Next: every suite runs on an internal
+    network.
+
 The rehearsal transcripts are not published: a runtime brought unrelated personal data into
 that room (item 3).
 
 ## Limitations
 
+- The shipped checks are a sample of the graded tests: about 21%, 65%, 91% and 84% of
+  stages 1-4 were covered only by the ledgers and the auditor's holdout tests.
+- State is held in memory only, which the specification allows.
+- After release, frozen folders changed only in their `RELEASE.md`: a path scrub in stage
+  1 and a test-run addendum in stage 3.
 - A seat cannot approve another seat's permission request, so every seat runs in a
   permission mode that needs no approval.
 - All four seats share one model family. The auditor's independence rests on what it
